@@ -4,27 +4,8 @@ const BlockType = require('../../extension-support/block-type');
 const Color = require('../../util/color');
 const log = require('../../util/log');
 const enhanceRuntime = require('./runtime-extensions');
-const StageLayering = require('../../engine/stage-layering');
 
 const makeMenu = dict => Object.values(dict).map(value => ({text: value, value}));
-
-/* const {
-    SoundSwap,
-    SOUND_SWAP_STATUSES: {
-        SS_PLUGIN_STATUS_UPDATE,
-        SS_PLUGIN_CHECKING,
-        SS_PLUGIN_STARTING,
-        SS_PLUGIN_READY,
-        SS_PLUGIN_STARTED,
-        SS_PLUGIN_STOPPED,
-        SS_PLUGIN_NOT_AVAILABLE
-    }
-} = SCRATCH_PLUGINS;
-*/
-
-const SYMBOLS = {
-    BENDER_THING: Symbol('BENDER_THING')
-};
 
 const SPRITE_PROPS = {
     NAME: 'name',
@@ -51,14 +32,6 @@ class Scratch3BenderBlocks {
             runtime.once('TARGETS_UPDATE', () => enhanceRuntime(runtime, this));
         }
 
-        // preview skin vars:
-        this._skinId = -1;
-        this._skin = null;
-        this._drawable = -1;
-        this._ghost = 0;
-        this._previewCanvas = document.createElement('canvas');
-        this._previewCtx = this._previewCanvas.getContext('2d');
-        this._setupPreview();
 
         this.skins = new Map();
         this.skinCount = 0;
@@ -67,32 +40,6 @@ class Scratch3BenderBlocks {
 
         log.info('bender blocks', this);
     }
-
-    static get STATE_KEY () {
-        return 'Joylabz.bender';
-    }
-
-    get scratchPluginEvents () {
-        return this.runtime.scratchPluginEvents || {
-            emit: function () {},
-            on: function () {}
-        };
-    }
-
-    _startBenderProfile (name = '') {
-        if (this.runtime.benderProfile[name]) {
-            // eslint-disable-next-line no-console
-            console.time(name);
-        }
-    }
-
-    _endBenderProfile (name = '') {
-        if (this.runtime.benderProfile[name]) {
-            // eslint-disable-next-line no-console
-            console.timeEnd(name);
-        }
-    }
-
     getInfo () {
         return {
             id: 'bender',
@@ -150,23 +97,6 @@ class Scratch3BenderBlocks {
                     }
                 },
                 {
-                    opcode: 'isDoingMyThing',
-                    text: 'is doing my thing?',
-                    blockType: BlockType.BOOLEAN,
-                    arguments: {}
-                },
-                {
-                    opcode: 'doMyThing',
-                    text: 'do my thing for [DELAY] seconds',
-                    blockType: BlockType.COMMAND,
-                    arguments: {
-                        DELAY: {
-                            type: ArgumentType.NUMBER,
-                            defaultValue: 0.5
-                        }
-                    }
-                },
-                {
                     opcode: 'cloneWithThreads',
                     text: 'clone self with running threads',
                     blockType: BlockType.COMMAND,
@@ -204,19 +134,6 @@ class Scratch3BenderBlocks {
                     }
                 },
                 {
-                    opcode: 'whenGlitchUndo',
-                    text: 'when glitch undo',
-                    blockType: BlockType.HAT,
-                    shouldRestartExistingThreads: false,
-                    isEdgeActivated: false
-                },
-                /*
-                {
-                    opcode: 'recordingBooth',
-                    text: 'recording booth',
-                    blockType: BlockType.COMMAND
-                },*/
-                {
                     opcode: 'spriteSwap',
                     text: 'swap costumes with [SPRITE_NAME]',
                     blockType: BlockType.COMMAND,
@@ -242,10 +159,6 @@ class Scratch3BenderBlocks {
             }
 
         };
-    }
-
-    whenGlitchUndo () {
-        return true;
     }
 
     spriteSwap (args, {target}) {
@@ -320,67 +233,7 @@ class Scratch3BenderBlocks {
 
         }
     }
-    /*
-    recordingBooth (args, {target}) {
-
-        if (!this.runtime.GAME_BENDER) {
-            this.runtime.emit('SAY', target, 'say', 'recording booth is only available in GameBender');
-
-            setTimeout(() => {
-                this.runtime.emit('SAY', target, 'say', '');
-            }, 3000);
-
-            return;
-        }
-
-        return new Promise((resolve, reject) => {
-            let startUnsubscribe = null;
-            let stopUnsubscribe = null;
-
-            this.scratchPluginEvents.emit(SS_PLUGIN_STATUS_UPDATE, SS_PLUGIN_CHECKING);
-            const onData = buffer => {
-                if (buffer) {
-                    // console.log('BOOTH IN SWAP TARGET');
-                    for (const player of Object.values(target.sprite.soundBank.soundPlayers)) {
-                        player.buffer = buffer;
-                        // outputNode copies the buffer set about when it initialize
-                        // this is why we need to set its buffer if its been initialized
-                        if (player.outputNode) {
-                            player.outputNode.buffer = buffer;
-                        }
-                    }
-                }
-
-                if (stopUnsubscribe) {
-                    stopUnsubscribe();
-                }
-
-                if (startUnsubscribe) {
-                    startUnsubscribe();
-                }
-                // console.log('BOOTH RESOLVE ON DATA');
-                resolve();
-            };
-
-            const soundSwap = new SoundSwap({onData});
-
-            startUnsubscribe = this.scratchPluginEvents.on(SS_PLUGIN_STARTING, loudnessDelegate => {
-                // pass in loudnessDelegate to update loudness state in gamebender
-                soundSwap.start(loudnessDelegate);
-                this.scratchPluginEvents.emit(SS_PLUGIN_STATUS_UPDATE, SS_PLUGIN_STARTED);
-            });
-
-            stopUnsubscribe = this.scratchPluginEvents.on(SS_PLUGIN_STOPPED, () => soundSwap.stop());
-
-            soundSwap.prep()
-                .then(() => this.scratchPluginEvents.emit(SS_PLUGIN_STATUS_UPDATE, SS_PLUGIN_READY))
-                .catch(() => {
-                    this.scratchPluginEvents.emit(SS_PLUGIN_STATUS_UPDATE, SS_PLUGIN_NOT_AVAILABLE);
-                    reject();
-                });
-        });
-    }
-    */
+    
     setStageBackgroundColor (args) {
         const ctx = this._previewCtx;
         const canvas = this._previewCanvas;
@@ -400,18 +253,8 @@ class Scratch3BenderBlocks {
 
     deleteSelf (args, util) {
         const {target} = util;
-
-        if (target.isOriginal && !this.runtime.GAME_BENDER) {
-
-            this.runtime.emit('SAY', target, 'say', 'would delete in Gamebender');
-            setTimeout(() => {
-                this.runtime.emit('SAY', target, 'say', '');
-            }, 2000);
-
-        } else {
             this.runtime.disposeTarget(target);
             this.runtime.stopForTarget(target);
-        }
     }
 
     getPixelColor (args) {
@@ -435,20 +278,6 @@ class Scratch3BenderBlocks {
         const [r, g, b] = rgb;
 
         return Color.rgbToHex({r, g, b});
-    }
-
-    isDoingMyThing (args, {target}) {
-        return Boolean(target[SYMBOLS.BENDER_THING]);
-    }
-
-    doMyThing (args, {target}) {
-        const delay = Number(args.DELAY);
-        // increase next counter
-        target[SYMBOLS.BENDER_THING] = (target[SYMBOLS.BENDER_THING] || 0) + 1;
-
-        setTimeout(() => {
-            target[SYMBOLS.BENDER_THING]--;
-        }, delay * 1000);
     }
 
     spriteInfo (args, util) {
@@ -532,59 +361,6 @@ class Scratch3BenderBlocks {
 
     isConnected () {
         return this.client.ready;
-    }
-
-    // Implementation Details
-
-    pause () {
-        const {runtime} = this;
-        if (!runtime.paused) {
-            runtime.audioEngine.audioContext.suspend();
-            clearInterval(runtime._steppingInterval);
-            runtime.paused = true;
-        }
-    }
-
-    resume () {
-        const {runtime} = this;
-        if (runtime.paused) {
-            runtime.paused = false;
-            runtime.audioEngine.audioContext.resume();
-            clearInterval(runtime._steppingInterval);
-            delete runtime._steppingInterval;
-            runtime.start();
-        }
-    }
-
-    _variableValue (targetVariables, variableID) {
-
-        if (targetVariables[variableID]) {
-            return targetVariables[variableID].value;
-        }
-
-        const stageVariables = this.runtime.getTargetForStage().variables;
-
-        if (stageVariables[variableID]) {
-            return stageVariables[variableID].value;
-        }
-
-        return null;
-    }
-
-    _setupPreview () {
-        const {renderer} = this.runtime;
-        if (!renderer) return;
-
-        if (this._skinId === -1 && this._skin === null && this._drawable === -1) {
-            this._skinId = renderer.createPenSkin();
-            this._skin = renderer._allSkins[this._skinId];
-            this._drawable = renderer.createDrawable(StageLayering.VIDEO_LAYER);
-            renderer.updateDrawableProperties(this._drawable, {
-                skinId: this._skinId,
-                ghost: this._ghost
-            });
-        }
-
     }
 }
 

@@ -166,6 +166,8 @@ class VirtualMachine extends EventEmitter {
         this.flyoutBlockListener = this.flyoutBlockListener.bind(this);
         this.monitorBlockListener = this.monitorBlockListener.bind(this);
         this.variableListener = this.variableListener.bind(this);
+        this.parser = require('scratch-parser');
+        this.sb3 = require('./serialization/sb3');
     }
 
     /**
