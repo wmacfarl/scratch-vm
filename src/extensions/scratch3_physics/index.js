@@ -1,4 +1,4 @@
-// https://cdn.jsdelivr.net/gh/griffpatch/griffpatch.github.io/testExtension.js
+// https://cdn.jsdelivr.net/gh/physics/physics.github.io/testExtension.js
 
 const ArgumentType = require('../../extension-support/argument-type');
 const BlockType = require('../../extension-support/block-type');
@@ -291,7 +291,7 @@ const _setStageType = function (type) {
         fixDef.shape.SetAsBox(250 / zoom, 10 / zoom);
         bodyDef.position.Set(0, -190 / zoom);
         createStageBody();
-        bodyDef.position.Set(0, 1000 / zoom);
+        bodyDef.position.Set(0, 190 / zoom);
         createStageBody();
         fixDef.shape.SetAsBox(10 / zoom, 800 / zoom);
         bodyDef.position.Set(-250 / zoom, 540 / zoom);
@@ -352,10 +352,10 @@ class Scratch3Physics {
         this.runtime.on(Runtime.PROJECT_START, this.reset.bind(this));
 
         world = new b2World(
-            new b2Vec2(0, -10), // gravity (10)
+            new b2Vec2(0, 0), // gravity (10)
             true // allow sleep
         );
-
+        this.runtime.stepPhysics = this.doTick.bind(this);
         zoom = 50; // scale;
 
         this.map = {};
@@ -386,7 +386,7 @@ class Scratch3Physics {
      * @type {string}
      */
     static get STATE_KEY () {
-        return 'Scratch.Griffpatch';
+        return 'Scratch.physics';
     }
 
     /**
@@ -394,11 +394,11 @@ class Scratch3Physics {
      */
     getInfo () {
         return {
-            id: 'griffpatch',
+            id: 'physics',
             name: formatMessage({
-                id: 'griffpatch.categoryName',
+                id: 'physics.categoryName',
                 default: 'Physics',
-                description: 'Label for the Griffpatch extension category'
+                description: 'Label for the physics extension category'
             }),
             menuIconURI: menuIconURI,
             blockIconURI: blockIconURI,
@@ -409,7 +409,7 @@ class Scratch3Physics {
                     opcode: 'setStage',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setStage',
+                        id: 'physics.setStage',
                         default: 'setup stage [stageType]',
                         description: 'Set the stage type'
                     }),
@@ -425,7 +425,7 @@ class Scratch3Physics {
                     opcode: 'setGravity',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setGravity',
+                        id: 'physics.setGravity',
                         default: 'set gravity to x: [gx] y: [gy]',
                         description: 'Set the gravity'
                     }),
@@ -447,7 +447,7 @@ class Scratch3Physics {
                     opcode: 'setPhysics',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setPhysics',
+                        id: 'physics.setPhysics',
                         default: 'enable for [shape] mode [mode]',
                         description: 'Enable Physics for this Sprite'
                     }),
@@ -468,7 +468,7 @@ class Scratch3Physics {
                 //     opcode: 'setPhysics',
                 //     blockType: BlockType.COMMAND,
                 //     text: formatMessage({
-                //         id: 'griffpatch.setPhysics',
+                //         id: 'physics.setPhysics',
                 //         default: 'enable physics for sprite [shape]',
                 //         description: 'Enable Physics for this Sprite'
                 //     }),
@@ -484,7 +484,7 @@ class Scratch3Physics {
                 //     opcode: 'setPhysicsAll',
                 //     blockType: BlockType.COMMAND,
                 //     text: formatMessage({
-                //         id: 'griffpatch.setPhysicsAll',
+                //         id: 'physics.setPhysicsAll',
                 //         default: 'enable physics for all sprites',
                 //         description: 'Enable Physics For All Sprites'
                 //     })
@@ -496,7 +496,7 @@ class Scratch3Physics {
                     opcode: 'doTick',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.doTick',
+                        id: 'physics.doTick',
                         default: 'step simulation',
                         description: 'Run a single tick of the physics simulation'
                     })
@@ -508,7 +508,7 @@ class Scratch3Physics {
                     opcode: 'setPosition',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setPosition',
+                        id: 'physics.setPosition',
                         default: 'go to x: [x] y: [y] [space]',
                         description: 'Position Sprite'
                     }),
@@ -540,7 +540,7 @@ class Scratch3Physics {
                     opcode: 'setVelocity',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setVelocity',
+                        id: 'physics.setVelocity',
                         default: 'set velocity to sx: [sx] sy: [sy]',
                         description: 'Set Velocity'
                     }),
@@ -559,7 +559,7 @@ class Scratch3Physics {
                     opcode: 'changeVelocity',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.changeVelocity',
+                        id: 'physics.changeVelocity',
                         default: 'change velocity by sx: [sx] sy: [sy]',
                         description: 'Change Velocity'
                     }),
@@ -577,7 +577,7 @@ class Scratch3Physics {
                 {
                     opcode: 'getVelocityX',
                     text: formatMessage({
-                        id: 'griffpatch.getVelocityX',
+                        id: 'physics.getVelocityX',
                         default: 'x velocity',
                         description: 'get the x velocity'
                     }),
@@ -586,7 +586,7 @@ class Scratch3Physics {
                 {
                     opcode: 'getVelocityY',
                     text: formatMessage({
-                        id: 'griffpatch.getVelocityY',
+                        id: 'physics.getVelocityY',
                         default: 'y velocity',
                         description: 'get the y velocity'
                     }),
@@ -599,7 +599,7 @@ class Scratch3Physics {
                     opcode: 'applyForce',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.applyForce',
+                        id: 'physics.applyForce',
                         default: 'push with force [force] in direction [dir]',
                         description: 'Push this object in a given direction'
                     }),
@@ -618,7 +618,7 @@ class Scratch3Physics {
                     opcode: 'applyAngForce',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.applyAngForce',
+                        id: 'physics.applyAngForce',
                         default: 'spin with force [force]',
                         description: 'Push this object in a given direction'
                     }),
@@ -636,7 +636,7 @@ class Scratch3Physics {
                     opcode: 'setStatic',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setStatic',
+                        id: 'physics.setStatic',
                         default: 'set fixed [static]',
                         description: 'Sets whether this block is static or dynamic'
                     }),
@@ -648,24 +648,11 @@ class Scratch3Physics {
                         }
                     }
                 },
-                {
-                  opcode: 'setColliderEnabled',
-                  blockType: BlockType.COMMAND,
-                  text: 'set collider [STATE] for this sprite',
-                  arguments: {
-                      STATE: {
-                          type: ArgumentType.STRING,
-                          menu: 'colliderState',
-                          defaultValue: 'enabled'
-                      }
-                  }
-              }
-              ,
                 // {
                 //     opcode: 'setDensity',
                 //     blockType: BlockType.COMMAND,
                 //     text: formatMessage({
-                //         id: 'griffpatch.setDensity',
+                //         id: 'physics.setDensity',
                 //         default: 'set density [density]',
                 //         description: 'Set the density of the object'
                 //     }),
@@ -680,7 +667,7 @@ class Scratch3Physics {
                     opcode: 'setProperties',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setProperties',
+                        id: 'physics.setProperties',
                         default: 'set density [density] roughness [friction] bounce [restitution]',
                         description: 'Set the density of the object'
                     }),
@@ -706,7 +693,7 @@ class Scratch3Physics {
                 //     opcode: 'pinSprite',
                 //     blockType: BlockType.COMMAND,
                 //     text: formatMessage({
-                //         id: 'griffpatch.pinSprite',
+                //         id: 'physics.pinSprite',
                 //         default: 'pin to world at sprite\'s x: [x] y: [y]',
                 //         description: 'Pin the sprite'
                 //     }),
@@ -727,7 +714,7 @@ class Scratch3Physics {
                 {
                     opcode: 'getTouching',
                     text: formatMessage({
-                        id: 'griffpatch.getTouching',
+                        id: 'physics.getTouching',
                         default: 'touching [where]',
                         description: 'get the name of any sprites we are touching'
                     }),
@@ -749,7 +736,7 @@ class Scratch3Physics {
                     opcode: 'setScroll',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.setScroll',
+                        id: 'physics.setScroll',
                         default: 'set scroll x: [ox] y: [oy]',
                         description: 'Sets whether this block is static or dynamic'
                     }),
@@ -768,7 +755,7 @@ class Scratch3Physics {
                     opcode: 'changeScroll',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'griffpatch.changeScroll',
+                        id: 'physics.changeScroll',
                         default: 'change scroll by x: [ox] y: [oy]',
                         description: 'Sets whether this block is static or dynamic'
                     }),
@@ -786,7 +773,7 @@ class Scratch3Physics {
                 {
                     opcode: 'getScrollX',
                     text: formatMessage({
-                        id: 'griffpatch.getScrollX',
+                        id: 'physics.getScrollX',
                         default: 'x scroll',
                         description: 'get the x scroll'
                     }),
@@ -795,7 +782,7 @@ class Scratch3Physics {
                 {
                     opcode: 'getScrollY',
                     text: formatMessage({
-                        id: 'griffpatch.getScrollY',
+                        id: 'physics.getScrollY',
                         default: 'y scroll',
                         description: 'get the y scroll'
                     }),
@@ -805,7 +792,7 @@ class Scratch3Physics {
                 // {
                 //     opcode: 'getStatic',
                 //     text: formatMessage({
-                //         id: 'griffpatch.getStatic',
+                //         id: 'physics.getStatic',
                 //         default: 'Static?',
                 //         description: 'get whether this sprite is static'
                 //     }),
@@ -822,17 +809,11 @@ class Scratch3Physics {
                 StaticTypes: this.STATIC_TYPE_MENU,
                 FrictionTypes: this.FRICTION_TYPE_MENU,
                 RestitutionTypes: this.RESTITUTION_TYPE_MENU,
-                DensityTypes: this.DENSITY_TYPE_MENU,
-                colliderState: [
-                  {text: 'enabled', value: 'enabled'},
-                  {text: 'disabled', value: 'disabled'}
-              ]
+                DensityTypes: this.DENSITY_TYPE_MENU
             }
 
         };
     }
-
-    
 
     get STAGE_TYPE_MENU () {
         return [
@@ -1189,24 +1170,7 @@ class Scratch3Physics {
         body.GetFixtureList().SetRestitution(Cast.toNumber(args.restitution) / 100.0);
         body.ResetMassData();
     }
-    setColliderEnabled(args, util) {
-      const state = args.STATE;
-      const targetId = util.target.id;
-      const body = this._getBodyForTargetId(targetId);
-  
-      if (!body) {
-        body = this.setPhysicsFor(util.target);
-      }
-  
-      const fixture = body.GetFixtureList();
-      while (fixture) {
-          fixture.SetSensor(state === 'disabled');
-          fixture = fixture.GetNext();
-      }
-  
-      body.SetAwake(true); // Ensure the change takes effect immediately
-  }
-  
+
     pinSprite (args, util) {
         if (!bodies[util.target.id]) {
             this.setPhysicsFor(util.target);

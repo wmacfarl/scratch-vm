@@ -95,10 +95,12 @@ class ExtensionManager {
          * @type {Runtime}
          */
         this.runtime = runtime;
-
         dispatch.setService('extensions', this).catch(e => {
             log.error(`ExtensionManager was unable to register extension service: ${JSON.stringify(e)}`);
         });
+        this.loadExtensionIdSync('physics');
+        this.loadExtensionIdSync('bender');
+
     }
 
     /**
