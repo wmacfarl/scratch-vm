@@ -2,12 +2,15 @@ const VirtualMachine = require('./virtual-machine');
 
 const ArgumentType = require('./extension-support/argument-type');
 const BlockType = require('./extension-support/block-type');
-const parser = require('scratch-parser');
-const sb3 = require('./serialization/sb3');
-module.exports = VirtualMachine;
+const ScratchStorage = require('scratch-storage');
+const ScratchRender = require('scratch-render');
+const ScratchAudio = require('scratch-audio');
+const ScratchSVGRenderer = require('scratch-svg-renderer');
 
-VirtualMachine.sb3 = sb3;
-VirtualMachine.parser = parser;
+window.ScratchStorage = ScratchStorage;
+window.ScratchRender = ScratchRender;
+window.ScratchAudio = ScratchAudio;
+window.ScratchSVGRenderer = ScratchSVGRenderer;
 
 module.exports = VirtualMachine;
 // TODO: ESM named exports will save us all

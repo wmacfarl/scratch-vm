@@ -45,7 +45,10 @@ const CORE_EXTENSIONS = [
 class VirtualMachine extends EventEmitter {
     constructor () {
         super();
-
+        const parser = require('scratch-parser');
+        const sb3 = require('./serialization/sb3');
+        this.parser = parser;
+        this.sb3 = sb3;
         /**
          * VM runtime, to store blocks, I/O devices, sprites/targets, etc.
          * @type {!Runtime}
