@@ -899,25 +899,7 @@ class Scratch3Physics {
      * @property {number} y - y offset.
      */
     doTick () { // args, util) {
-        // this._playDrumForBeats(args.DRUM, args.BEATS, util);
-        // if (util.runtime.audioEngine === null) return;
-        // if (util.target.sprite.soundBank === null) return;
-
-        // const dx = Cast.toNumber(args.x);
-        // const dy = Cast.toNumber(args.y);
-
-        // const allTargets = this.runtime.targets;
-        // if (allTargets === null) return;
-        // for (let i = 0; i < allTargets.length; i++) {
-        //     const target = allTargets[i];
-        //     if (!target.isStage) {
-        //         target.setXY(target.x + dx, target.y + dy);
-        //     }
-        // }
-
-        // util.target.setXY(util.target.x + dx, util.target.y + dy);
-
-        // Matter.Engine.update(this.engine, 1000 / 30);
+        console.log('doTick!');
         this._checkMoved();
 
         // world.Step(1 / 30, 10, 10);
@@ -933,6 +915,11 @@ class Scratch3Physics {
                 delete bodies[targetID];
                 delete prevPos[targetID];
                 continue;
+            }
+
+            if (target.physicsCostumeName !== 'hitbox' &&
+                target.physicsCostumeName !== target.getCurrentCostume().name) {
+                    this.setPhysicsFor(target);
             }
 
             const position = body.GetPosition();
@@ -1019,75 +1006,65 @@ class Scratch3Physics {
         }
     }
 
-    setPhysicsFor (target, shape) {
-
+    setPhysicsFor(target) {
+    
         const r = this.runtime.renderer;
         const drawable = r._allDrawables[target.drawableID];
-
-        // Tell the Drawable about its updated convex hullPoints, if necessary.
+    
+        // Check for a 'hitbox' costume
+        
+        const hitboxCostumeIndex = target.getCostumeIndexByName('hitbox'); // Method to get a costume by name
+        let hitboxCostume = null;
+        if (hitboxCostumeIndex !== -1) {
+            hitboxCostume = target.getCostumes()[hitboxCostumeIndex];
+        }
+        const currentCostume = target.getCurrentCostume(); // Method to get the current costume name
+        const currentCostumeIndex = target.getCostumeIndexByName(currentCostume); // Method to get a costume by name
+        let costumeToUse = hitboxCostume || currentCostume // Use 'hitbox' costume if available, otherwise current costume
+        target.physicsCostumeName = costumeToUse.name;
+    
+        // Set the costume to the one we've determined to use
+        target.setCostume(costumeToUse.name);
+    
+        // Update convex hull points for the costume in use
         if (drawable.needsConvexHullPoints()) {
             const points = r._getConvexHullPointsForDrawable(target.drawableID);
             drawable.setConvexHullPoints(points);
         }
-
-        // if (drawable._transformDirty) {
-        //     drawable._calculateTransform();
-        // }
-        // const points = drawable._getTransformedHullPoints();
-        //
-        // const hullPoints = [];
-        // for (const i in points) {
-        //     hullPoints.push({x: points[i][0] - target.x, y: points[i][1] - target.y});
-        // }
-
+    
         const points = drawable._convexHullPoints;
         const scaleX = drawable.scale[0] / 100;
         const scaleY = drawable.scale[1] / -100; // Flip Y for hulls
         const offset = drawable.skin.rotationCenter;
         let allHulls = null;
-
-        if (shape === SHAPE_TYPE_OPTIONS.CIRCLE) {
-            fixDef.shape = new b2CircleShape();
-            const size = drawable.skin.size;
-            fixDef.shape.SetRadius((((size[0] * Math.abs(scaleX)) + (size[1] * Math.abs(scaleY))) / 4.0) / zoom);
-            // fixDef.shape.SetRadius((drawable.getBounds().width / 2) / zoom);
-        } else if (shape === SHAPE_TYPE_OPTIONS.SVG_POLYGON) {
-            const svg = drawable._skin._svgRenderer._svgTag;
-
-            // recurse through childNodes of type 'g', looking for type 'path'
-
-            const hullPoints = [];
-            if (svg) {
-                this._fetchPolygonPointsFromSVG(svg, hullPoints, offset[0], offset[1], scaleX, scaleY);
-            }
-
-            _definePolyFromHull(hullPoints[0]);
-            allHulls = hullPoints;
-
-        } else {
-            const hullPoints = [];
-            for (const i in points) {
-                hullPoints.push({x: (points[i][0] - offset[0]) * scaleX, y: (points[i][1] - offset[1]) * scaleY});
-            }
-
-            _definePolyFromHull(hullPoints);
+    
+        const hullPoints = [];
+        for (const i in points) {
+            hullPoints.push({x: (points[i][0] - offset[0]) * scaleX, y: (points[i][1] - offset[1]) * scaleY});
         }
-
+    
+        _definePolyFromHull(hullPoints);
+    
         const fixedRotation = target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
         const body = _placeBody(target.id, target.x, target.y, fixedRotation ? 90 : target.direction);
         if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
             body.SetFixedRotation(true);
         }
-
+    
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
                 _definePolyFromHull(allHulls[i]);
                 body.CreateFixture(fixDef);
             }
         }
-
+    
+        // Restore the original costume if we used the 'hitbox' costume
+        if (hitboxCostume) {
+            target.setCostume(currentCostumeIndex);
+        }
         return body;
     }
+    
 
     /**
      *
