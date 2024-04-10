@@ -1,5 +1,7 @@
 // https://cdn.jsdelivr.net/gh/physics/physics.github.io/testExtension.js
-
+const CATEGORY_WALLS = 0x0002;
+const CATEGORY_NOT_WALLS = 0x0004;
+const CATEGORY_HIDDEN = 0x0008; 
 const ArgumentType = require('../../extension-support/argument-type');
 const BlockType = require('../../extension-support/block-type');
 // const MathUtil = require('../../util/math-util');
@@ -99,7 +101,7 @@ const _definePolyFromHull = function (hullPoints) {
 
     let prev = null;
     for (let i = hullPoints.length - 1; i >= 0; i--) {
-    // for (let i = 0; i < hullPoints.length; i++) {
+        // for (let i = 0; i < hullPoints.length; i++) {
         const b2Vec = new b2Vec2(hullPoints[i].x / zoom, hullPoints[i].y / zoom);
         if (prev !== null && b2Math.SubtractVV(b2Vec, prev).LengthSquared() > Number.MIN_VALUE) {
             vertices.push(b2Vec);
@@ -141,16 +143,16 @@ const _applyForce = function (id, ftype, x, y, dir, pow) {
 
         const center = body.GetLocalCenter(); // get the mass data from you body
 
-        body.ApplyImpulse({x: pow * Math.cos(dir), y: pow * Math.sin(dir)},
-            body.GetWorldPoint({x: (x / zoom) + center.x, y: (y / zoom) + center.y}));
+        body.ApplyImpulse({ x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
+            body.GetWorldPoint({ x: (x / zoom) + center.x, y: (y / zoom) + center.y }));
     } else if (ftype === 'World Impulse') {
-        body.ApplyForce({x: pow * Math.cos(dir), y: pow * Math.sin(dir)},
-            {x: x / zoom, y: y / zoom});
+        body.ApplyForce({ x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
+            { x: x / zoom, y: y / zoom });
     }
 };
 
 // ['', 'Define Spring Length: %n Damping: %n  Freq: %n', '_defineSpring', 100, 0.5, 8],
-const defSpring = {len: 100, damp: 0.7, freq: 5};
+const defSpring = { len: 100, damp: 0.7, freq: 5 };
 const _defineSpring = function (len, damp, freq) {
     defSpring.len = len < 0.1 ? 0.1 : len / zoom;
     defSpring.damp = damp < 0 ? 0.7 : damp;
@@ -174,46 +176,46 @@ const _createJointOfType = function (jName, typ, bodyID, x, y, bodyID2, x2, y2) 
 
     let md;
     switch (typ) {
-    case 'Spring':
-        md = new Box2D.Dynamics.Joints.b2DistanceJointDef();
-        md.length = defSpring.len;
-        md.dampingRatio = defSpring.damp;
-        md.frequencyHz = defSpring.freq;
-        md.bodyA = body;
-        md.bodyB = body2;
-        md.localAnchorA = {x: x / zoom, y: y / zoom};
-        md.localAnchorB = {x: x2 / zoom, y: y2 / zoom};
-        break;
-
-    case 'Rotating':
-        md = new Box2D.Dynamics.Joints.b2RevoluteJointDef();
-        md.bodyA = body;
-        md.bodyB = body2;
-        md.localAnchorA = {x: x / zoom, y: y / zoom};
-        if (x2 === null) {
-            if (body2) {
-                md.localAnchorB = body2.GetLocalPoint(body.GetPosition()); // Wheel Type Joint...
-            } else {
-                md.localAnchorB = body.GetWorldPoint({x: (x / zoom), y: (y / zoom)});
-            }
-        } else {
-            md.localAnchorB = {x: x2 / zoom, y: y2 / zoom};
-        }
-        break;
-
-    case 'Mouse':
-        md = new b2MouseJointDef();
-        if (bodyID) {
-            md.bodyB = body;
-            md.target.Set(x / zoom, y / zoom);
-        } else {
+        case 'Spring':
+            md = new Box2D.Dynamics.Joints.b2DistanceJointDef();
+            md.length = defSpring.len;
+            md.dampingRatio = defSpring.damp;
+            md.frequencyHz = defSpring.freq;
+            md.bodyA = body;
             md.bodyB = body2;
-            md.target.Set(x2 / zoom, y2 / zoom);
-        }
-        md.bodyA = world.GetGroundBody();
-        md.collideConnected = true;
-        md.maxForce = 300.0 * body.GetMass();
-        break;
+            md.localAnchorA = { x: x / zoom, y: y / zoom };
+            md.localAnchorB = { x: x2 / zoom, y: y2 / zoom };
+            break;
+
+        case 'Rotating':
+            md = new Box2D.Dynamics.Joints.b2RevoluteJointDef();
+            md.bodyA = body;
+            md.bodyB = body2;
+            md.localAnchorA = { x: x / zoom, y: y / zoom };
+            if (x2 === null) {
+                if (body2) {
+                    md.localAnchorB = body2.GetLocalPoint(body.GetPosition()); // Wheel Type Joint...
+                } else {
+                    md.localAnchorB = body.GetWorldPoint({ x: (x / zoom), y: (y / zoom) });
+                }
+            } else {
+                md.localAnchorB = { x: x2 / zoom, y: y2 / zoom };
+            }
+            break;
+
+        case 'Mouse':
+            md = new b2MouseJointDef();
+            if (bodyID) {
+                md.bodyB = body;
+                md.target.Set(x / zoom, y / zoom);
+            } else {
+                md.bodyB = body2;
+                md.target.Set(x2 / zoom, y2 / zoom);
+            }
+            md.bodyA = world.GetGroundBody();
+            md.collideConnected = true;
+            md.maxForce = 300.0 * body.GetMass();
+            break;
     }
 
     // md.collideConnected = true;
@@ -269,6 +271,18 @@ const _setXY = function (rt, x, y, force) {
 const createStageBody = function () {
     const body = world.CreateBody(bodyDef);
     body.CreateFixture(fixDef);
+
+
+    // Determine the new category and mask bits based on the isWall flag
+    let categoryBits = CATEGORY_WALLS
+    let maskBits = CATEGORY_WALLS | CATEGORY_NOT_WALLS
+    // Loop through all fixtures of the body and update their filter data
+    for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+        let filter = fixture.GetFilterData();
+        filter.categoryBits = categoryBits;
+        filter.maskBits = maskBits;
+        fixture.SetFilterData(filter);
+    }
     stageBodies.push(body);
 };
 
@@ -341,7 +355,8 @@ const menuIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtb
  */
 class Scratch3Physics {
 
-    constructor (runtime) {
+    constructor(runtime) {
+        console.log("Physics Extension Loaded")
         /**
          * The runtime instantiating this block package.
          * @type {Runtime}
@@ -356,6 +371,7 @@ class Scratch3Physics {
             true // allow sleep
         );
         this.runtime.stepPhysics = this.doTick.bind(this);
+        this.runtime.setIsWall = this.setWall.bind(this);
         zoom = 50; // scale;
 
         this.map = {};
@@ -367,7 +383,7 @@ class Scratch3Physics {
         _setStageType(STAGE_TYPE_OPTIONS.BOXED);
     }
 
-    reset () {
+    reset() {
         for (const body in bodies) {
             if (pinned[body.uid]) {
                 world.DestroyJoint(pinned[body.uid]);
@@ -385,14 +401,14 @@ class Scratch3Physics {
      * The key to load & store a target's music-related state.
      * @type {string}
      */
-    static get STATE_KEY () {
+    static get STATE_KEY() {
         return 'Scratch.physics';
     }
 
     /**
      * @returns {object} metadata for this extension and its blocks.
      */
-    getInfo () {
+    getInfo() {
         return {
             id: 'physics',
             name: formatMessage({
@@ -815,81 +831,81 @@ class Scratch3Physics {
         };
     }
 
-    get STAGE_TYPE_MENU () {
+    get STAGE_TYPE_MENU() {
         return [
-            {text: 'boxed stage', value: STAGE_TYPE_OPTIONS.BOXED},
-            {text: 'open (with floor)', value: STAGE_TYPE_OPTIONS.FLOOR},
-            {text: 'open (no floor)', value: STAGE_TYPE_OPTIONS.OPEN}
+            { text: 'boxed stage', value: STAGE_TYPE_OPTIONS.BOXED },
+            { text: 'open (with floor)', value: STAGE_TYPE_OPTIONS.FLOOR },
+            { text: 'open (no floor)', value: STAGE_TYPE_OPTIONS.OPEN }
         ];
     }
 
-    get SPACE_TYPE_MENU () {
+    get SPACE_TYPE_MENU() {
         return [
-            {text: 'in world', value: SPACE_TYPE_OPTIONS.WORLD},
-            {text: 'on stage', value: SPACE_TYPE_OPTIONS.STAGE},
-            {text: 'relative', value: SPACE_TYPE_OPTIONS.RELATIVE}
+            { text: 'in world', value: SPACE_TYPE_OPTIONS.WORLD },
+            { text: 'on stage', value: SPACE_TYPE_OPTIONS.STAGE },
+            { text: 'relative', value: SPACE_TYPE_OPTIONS.RELATIVE }
         ];
     }
 
-    get WHERE_TYPE_MENU () {
+    get WHERE_TYPE_MENU() {
         return [
-            {text: 'any', value: WHERE_TYPE_OPTIONS.ANY},
-            {text: 'feet', value: WHERE_TYPE_OPTIONS.FEET}
+            { text: 'any', value: WHERE_TYPE_OPTIONS.ANY },
+            { text: 'feet', value: WHERE_TYPE_OPTIONS.FEET }
         ];
     }
 
-    get SHAPE_TYPE_MENU () {
+    get SHAPE_TYPE_MENU() {
         return [
-            {text: 'this costume', value: SHAPE_TYPE_OPTIONS.COSTUME},
-            {text: 'this circle', value: SHAPE_TYPE_OPTIONS.CIRCLE},
-            {text: 'this polygon', value: SHAPE_TYPE_OPTIONS.SVG_POLYGON},
-            {text: 'all sprites', value: SHAPE_TYPE_OPTIONS.ALL}
+            { text: 'this costume', value: SHAPE_TYPE_OPTIONS.COSTUME },
+            { text: 'this circle', value: SHAPE_TYPE_OPTIONS.CIRCLE },
+            { text: 'this polygon', value: SHAPE_TYPE_OPTIONS.SVG_POLYGON },
+            { text: 'all sprites', value: SHAPE_TYPE_OPTIONS.ALL }
         ];
     }
 
-    get ENABLE_TYPES_TYPE_MENU () {
+    get ENABLE_TYPES_TYPE_MENU() {
         return [
-            {text: 'normal', value: 'normal'},
-            {text: 'precision', value: 'bullet'}
+            { text: 'normal', value: 'normal' },
+            { text: 'precision', value: 'bullet' }
         ];
     }
 
-    get STATIC_TYPE_MENU () {
+    get STATIC_TYPE_MENU() {
         return [
-            {text: 'free', value: 'dynamic'},
-            {text: 'fixed in place', value: 'static'},
-            {text: 'fixed (but can rotate)', value: 'pinned'}
+            { text: 'free', value: 'dynamic' },
+            { text: 'fixed in place', value: 'static' },
+            { text: 'fixed (but can rotate)', value: 'pinned' }
         ];
     }
 
-    get DENSITY_TYPE_MENU () {
+    get DENSITY_TYPE_MENU() {
         return [
-            {text: 'very light', value: '25'},
-            {text: 'light', value: '50'},
-            {text: 'normal', value: '100'},
-            {text: 'heavy', value: '200'},
-            {text: 'very heavy', value: '400'}
+            { text: 'very light', value: '25' },
+            { text: 'light', value: '50' },
+            { text: 'normal', value: '100' },
+            { text: 'heavy', value: '200' },
+            { text: 'very heavy', value: '400' }
         ];
     }
 
-    get FRICTION_TYPE_MENU () {
+    get FRICTION_TYPE_MENU() {
         return [
-            {text: 'none', value: '0'},
-            {text: 'smooth', value: '20'},
-            {text: 'normal', value: '50'},
-            {text: 'rough', value: '75'},
-            {text: 'extremely rough', value: '100'}
+            { text: 'none', value: '0' },
+            { text: 'smooth', value: '20' },
+            { text: 'normal', value: '50' },
+            { text: 'rough', value: '75' },
+            { text: 'extremely rough', value: '100' }
         ];
     }
 
-    get RESTITUTION_TYPE_MENU () {
+    get RESTITUTION_TYPE_MENU() {
         return [
-            {text: 'none', value: '0'},
-            {text: 'little', value: '10'},
-            {text: 'normal', value: '20'},
-            {text: 'quite bouncy', value: '40'},
-            {text: 'very bouncy', value: '70'},
-            {text: 'unstable', value: '100'}
+            { text: 'none', value: '0' },
+            { text: 'little', value: '10' },
+            { text: 'normal', value: '20' },
+            { text: 'quite bouncy', value: '40' },
+            { text: 'very bouncy', value: '70' },
+            { text: 'unstable', value: '100' }
         ];
     }
 
@@ -898,8 +914,7 @@ class Scratch3Physics {
      * @property {number} x - x offset.
      * @property {number} y - y offset.
      */
-    doTick () { // args, util) {
-        console.log('doTick!');
+    doTick() { // args, util) {
         this._checkMoved();
 
         // world.Step(1 / 30, 10, 10);
@@ -907,7 +922,7 @@ class Scratch3Physics {
         world.ClearForces();
 
         for (const targetID in bodies) {
-            const body = bodies[targetID];
+            let body = bodies[targetID];
             const target = this.runtime.getTargetById(targetID);
             if (!target) {
                 // Drop target from simulation
@@ -916,10 +931,17 @@ class Scratch3Physics {
                 delete prevPos[targetID];
                 continue;
             }
-
+        
             if (target.physicsCostumeName !== 'hitbox' &&
                 target.physicsCostumeName !== target.getCurrentCostume().name) {
-                    this.setPhysicsFor(target);
+                    const cachedVelocity = body.GetLinearVelocity();
+                body = this.setPhysicsFor(target);
+                body.SetLinearVelocity(cachedVelocity);
+            }
+            if (!target.visible  && !target.isHiddenPhysics){
+                this.setHidden(target, true);                
+            } else if (target.visible && target.isHiddenPhysics){
+                this.setHidden(target, false);
             }
 
             const position = body.GetPosition();
@@ -928,12 +950,16 @@ class Scratch3Physics {
             if (target.rotationStyle === RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
                 target.setDirection(90 - (body.GetAngle() / toRad));
             }
-
-            prevPos[targetID] = {x: target.x, y: target.y, dir: target.direction};
+            const pin = pinned[target.id];
+            if (!pin) {
+                // clear the angular velocity if not pinned
+                body.SetAngularVelocity(0);
+            }
+            prevPos[targetID] = { x: target.x, y: target.y, dir: target.direction };
         }
     }
 
-    _checkMoved () {
+    _checkMoved() {
         for (const targetID in bodies) {
             const body = bodies[targetID];
             const target = this.runtime.getTargetById(targetID);
@@ -962,12 +988,11 @@ class Scratch3Physics {
         }
     }
 
-    /**
-     * Play a drum sound for some number of beats.
-     * @property {number} x - x offset.
-     * @property {number} y - y offset.
-     */
-    setPhysicsAll () {
+  
+    
+
+
+    setPhysicsAll() {
 
         const allTargets = this.runtime.targets;
         if (allTargets === null) return;
@@ -986,7 +1011,7 @@ class Scratch3Physics {
      * @param {object} util - utility object provided by the runtime.
      * @property {string} shape - the shape
      */
-    setPhysics (args, util) {
+    setPhysics(args, util) {
         // this._playDrumForBeats(args.DRUM, args.BEATS, util);
         // if (util.runtime.audioEngine === null) return;
         // if (util.target.sprite.soundBank === null) return;
@@ -1006,13 +1031,66 @@ class Scratch3Physics {
         }
     }
 
-    setPhysicsFor(target) {
+     setHidden(target, isHidden) {
+        // Retrieve the Box2D body associated with the target
+        let body = bodies[target.id];
+        if (!body) {
+            body = this.setPhysicsFor(target);
+        }
+
     
+        // Determine the new category and mask bits based on the isHidden flag
+        let categoryBits = isHidden ? CATEGORY_HIDDEN : (target.isWall ? CATEGORY_WALLS : CATEGORY_NOT_WALLS);
+        let maskBits = isHidden ? 0 : (target.isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS); // If not hidden, revert to previous collision rules
+    
+        // Loop through all fixtures of the body and update their filter data
+        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+            let filter = fixture.GetFilterData();
+            filter.categoryBits = categoryBits;
+            filter.maskBits = maskBits;
+            fixture.SetFilterData(filter);
+        }
+    
+        // Update any metadata or properties you use to track the hidden state of the target
+        target.isHiddenPhysics = isHidden;
+    }
+    
+
+    setWall(target, isWall) {
+        if (target.isStage || target.isPhysicsWall === isWall) {
+            return;
+        }
+        // Retrieve the Box2D body associated with the target
+        let body = bodies[target.id];
+        if (!body) {
+            body = this.setPhysicsFor(target);
+        }
+
+        // Determine the new category and mask bits based on the isWall flag
+        let categoryBits = isWall ? CATEGORY_WALLS : CATEGORY_NOT_WALLS;
+        let maskBits = isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS; // Walls collide with both, Not Walls only with Walls
+
+        // Loop through all fixtures of the body and update their filter data
+        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+            let filter = fixture.GetFilterData();
+            filter.categoryBits = categoryBits;
+            filter.maskBits = maskBits;
+            fixture.SetFilterData(filter);
+        }
+        // Optionally, update any metadata or properties you use to track the wall state of the target
+        const variable = target.lookupOrCreateVariable(`$is_wall?_${target.sprite.clones[0].id}`, 'is wall?');
+        variable.value = isWall;
+        target.isPhysicsWall = isWall;
+    }
+
+
+    setPhysicsFor(target) {
+
         const r = this.runtime.renderer;
         const drawable = r._allDrawables[target.drawableID];
-    
+
         // Check for a 'hitbox' costume
-        
+
         const hitboxCostumeIndex = target.getCostumeIndexByName('hitbox'); // Method to get a costume by name
         let hitboxCostume = null;
         if (hitboxCostumeIndex !== -1) {
@@ -1022,49 +1100,51 @@ class Scratch3Physics {
         const currentCostumeIndex = target.getCostumeIndexByName(currentCostume); // Method to get a costume by name
         let costumeToUse = hitboxCostume || currentCostume // Use 'hitbox' costume if available, otherwise current costume
         target.physicsCostumeName = costumeToUse.name;
-    
+        const costumeToUseIndex = target.getCostumeIndexByName(costumeToUse.name); // Method to get a costume by name
         // Set the costume to the one we've determined to use
-        target.setCostume(costumeToUse.name);
-    
+        target.setCostume(costumeToUseIndex);
+
         // Update convex hull points for the costume in use
         if (drawable.needsConvexHullPoints()) {
             const points = r._getConvexHullPointsForDrawable(target.drawableID);
             drawable.setConvexHullPoints(points);
         }
-    
+
         const points = drawable._convexHullPoints;
         const scaleX = drawable.scale[0] / 100;
         const scaleY = drawable.scale[1] / -100; // Flip Y for hulls
         const offset = drawable.skin.rotationCenter;
         let allHulls = null;
-    
+
         const hullPoints = [];
         for (const i in points) {
-            hullPoints.push({x: (points[i][0] - offset[0]) * scaleX, y: (points[i][1] - offset[1]) * scaleY});
+            hullPoints.push({ x: (points[i][0] - offset[0]) * scaleX, y: (points[i][1] - offset[1]) * scaleY });
         }
-    
+
         _definePolyFromHull(hullPoints);
-    
+
         const fixedRotation = target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
         const body = _placeBody(target.id, target.x, target.y, fixedRotation ? 90 : target.direction);
         if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
             body.SetFixedRotation(true);
         }
-    
+
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
                 _definePolyFromHull(allHulls[i]);
                 body.CreateFixture(fixDef);
             }
         }
-    
+
         // Restore the original costume if we used the 'hitbox' costume
         if (hitboxCostume) {
             target.setCostume(currentCostumeIndex);
         }
+        target.isPhysicsWall = 'not yet set'
+        this.setWall(target, false);
         return body;
     }
-    
+
 
     /**
      *
@@ -1072,7 +1152,7 @@ class Scratch3Physics {
      * @param {Array} hullPointsList array of points
      * @private
      */
-    _fetchPolygonPointsFromSVG (svg, hullPointsList, ox, oy, scaleX, scaleY) {
+    _fetchPolygonPointsFromSVG(svg, hullPointsList, ox, oy, scaleX, scaleY) {
         if (svg.tagName === 'g' || svg.tagName === 'svg') {
             if (svg.hasChildNodes()) {
                 for (const node of svg.childNodes) {
@@ -1100,24 +1180,24 @@ class Scratch3Physics {
             if (token === 'M' || token === 'L') {
                 const x = Cast.toNumber(tokens[i++]);
                 const y = Cast.toNumber(tokens[i++]);
-                hullPoints.push({x: (x - ox) * scaleX, y: (y - oy) * scaleY});
+                hullPoints.push({ x: (x - ox) * scaleX, y: (y - oy) * scaleY });
                 if (token === 'M') {
                     fx = x;
                     fy = y;
                 }
             }
             if (token === 'Z') {
-                hullPoints.push({x: (fx - ox) * scaleX, y: (fy - oy) * scaleY});
+                hullPoints.push({ x: (fx - ox) * scaleX, y: (fy - oy) * scaleY });
             }
         }
     }
 
-    applyForce (args, util) {
+    applyForce(args, util) {
         _applyForce(util.target.id, 'Impulse', 0, 0,
             Cast.toNumber(args.dir), Cast.toNumber(args.force));
     }
 
-    applyAngForce (args, util) {
+    applyAngForce(args, util) {
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1126,7 +1206,7 @@ class Scratch3Physics {
         body.ApplyTorque(-Cast.toNumber(args.force));
     }
 
-    setDensity (args, util) {
+    setDensity(args, util) {
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1136,7 +1216,7 @@ class Scratch3Physics {
         body.ResetMassData();
     }
 
-    setProperties (args, util) {
+    setProperties(args, util) {
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1148,7 +1228,7 @@ class Scratch3Physics {
         body.ResetMassData();
     }
 
-    pinSprite (args, util) {
+    pinSprite(args, util) {
         if (!bodies[util.target.id]) {
             this.setPhysicsFor(util.target);
         }
@@ -1167,36 +1247,36 @@ class Scratch3Physics {
      * @property {number} y - y offset.
      * @property {string} space - Space type (SPACE_TYPE_OPTIONS)
      */
-    setPosition (args, util) {
+    setPosition(args, util) {
         const x = Cast.toNumber(args.x);
         const y = Cast.toNumber(args.y);
         const body = bodies[util.target.id];
 
         switch (args.space) {
-        case SPACE_TYPE_OPTIONS.STAGE:
-            _setXY(util.target, x, y); // Position on stage (after scroll)
-            if (body) {
-                this._setPosition(body, new b2Vec2((x + _scroll.x) / zoom, (y + _scroll.y) / zoom));
+            case SPACE_TYPE_OPTIONS.STAGE:
+                _setXY(util.target, x, y); // Position on stage (after scroll)
+                if (body) {
+                    this._setPosition(body, new b2Vec2((x + _scroll.x) / zoom, (y + _scroll.y) / zoom));
+                }
+                break;
+            case SPACE_TYPE_OPTIONS.RELATIVE: {
+                _setXY(util.target, util.target.x + x, util.target.x + y);
+                if (body) {
+                    const pos = body.GetPosition();
+                    const pos2 = new b2Vec2(pos.x + (x / zoom), pos.y + (y / zoom));
+                    this._setPosition(body, pos2);
+                }
+                break;
             }
-            break;
-        case SPACE_TYPE_OPTIONS.RELATIVE: {
-            _setXY(util.target, util.target.x + x, util.target.x + y);
-            if (body) {
-                const pos = body.GetPosition();
-                const pos2 = new b2Vec2(pos.x + (x / zoom), pos.y + (y / zoom));
-                this._setPosition(body, pos2);
-            }
-            break;
-        }
-        default:
-            _setXY(util.target, x - _scroll.x, y - _scroll.y);
-            if (body) {
-                this._setPosition(body, new b2Vec2(x / zoom, y / zoom));
-            }
+            default:
+                _setXY(util.target, x - _scroll.x, y - _scroll.y);
+                if (body) {
+                    this._setPosition(body, new b2Vec2(x / zoom, y / zoom));
+                }
         }
     }
 
-    _setPosition (body, pos2) {
+    _setPosition(body, pos2) {
         const md = pinned[body.uid];
         if (md) {
             world.DestroyJoint(md);
@@ -1215,7 +1295,7 @@ class Scratch3Physics {
      * @property {number} sx - speed x.
      * @property {number} sy - speed y.
      */
-    setVelocity (args, util) {
+    setVelocity(args, util) {
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1237,7 +1317,7 @@ class Scratch3Physics {
      * @property {number} sx - speed x.
      * @property {number} sy - speed y.
      */
-    changeVelocity (args, util) {
+    changeVelocity(args, util) {
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1259,7 +1339,7 @@ class Scratch3Physics {
      * @param {object} util - utility object provided by the runtime.
      * @return {boolean} - the current tempo, in beats per minute.
      */
-    getStatic (args, util) {
+    getStatic(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
             return false;
@@ -1274,7 +1354,7 @@ class Scratch3Physics {
      * @param {object} util - utility object provided by the runtime.
      * @return {number} - the current x velocity.
      */
-    getVelocityX (args, util) {
+    getVelocityX(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
             return 0;
@@ -1289,7 +1369,7 @@ class Scratch3Physics {
      * @param {object} util - utility object provided by the runtime.
      * @return {boolean} - the current y velocity.
      */
-    getVelocityY (args, util) {
+    getVelocityY(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
             return 0;
@@ -1304,7 +1384,7 @@ class Scratch3Physics {
      * @param {object} util - utility object provided by the runtime.
      * @property {string} static - static or not
      */
-    setStatic (args, util) {
+    setStatic(args, util) {
         const target = util.target;
         let body = bodies[util.target.id];
         if (!body) {
@@ -1325,7 +1405,7 @@ class Scratch3Physics {
             let body2ID = null;
             world.QueryAABB(fixture => {
                 const body2 = fixture.GetBody();
-                if (body2 !== body && fixture.TestPoint(pos.x, pos.y)){
+                if (body2 !== body && fixture.TestPoint(pos.x, pos.y)) {
                     body2ID = body2.uid;
                     return false;
                 }
@@ -1349,7 +1429,7 @@ class Scratch3Physics {
      * @property {number} ox - x offset.
      * @property {number} oy - y offset.
      */
-    setScroll (args) {
+    setScroll(args) {
         this._checkMoved();
         _scroll.x = Cast.toNumber(args.ox);
         _scroll.y = Cast.toNumber(args.oy);
@@ -1362,7 +1442,7 @@ class Scratch3Physics {
      * @property {number} ox - x offset.
      * @property {number} oy - y offset.
      */
-    changeScroll (args) {
+    changeScroll(args) {
         this._checkMoved();
         _scroll.x += Cast.toNumber(args.ox);
         _scroll.y += Cast.toNumber(args.oy);
@@ -1373,7 +1453,7 @@ class Scratch3Physics {
      * Get the scroll x.
      * @return {number} - the current x velocity.
      */
-    getScrollX () {
+    getScrollX() {
         return _scroll.x;
     }
 
@@ -1381,23 +1461,23 @@ class Scratch3Physics {
      * Get the scroll x.
      * @return {number} - the current x velocity.
      */
-    getScrollY () {
+    getScrollY() {
         return _scroll.y;
     }
 
-    _repositionBodies () {
+    _repositionBodies() {
         for (const targetID in bodies) {
             const body = bodies[targetID];
             const target = this.runtime.getTargetById(targetID);
             if (target) {
                 const position = body.GetPosition();
                 _setXY(target, (position.x * zoom) - _scroll.x, (position.y * zoom) - _scroll.y);
-                prevPos[targetID] = {x: target.x, y: target.y, dir: target.direction};
+                prevPos[targetID] = { x: target.x, y: target.y, dir: target.direction };
             }
         }
     }
 
-    getTouching (args, util) {
+    getTouching(args, util) {
         const target = util.target;
         const body = bodies[target.id];
         if (!body) {
@@ -1468,7 +1548,7 @@ class Scratch3Physics {
      * @param {object} args - the block arguments.
      * @property {number} stageType - Stage Type.
      */
-    setStage (args) {
+    setStage(args) {
         _setStageType(args.stageType);
     }
 
@@ -1478,7 +1558,7 @@ class Scratch3Physics {
      * @property {number} gx - Gravity x.
      * @property {number} gy - Gravity y.
      */
-    setGravity (args) {
+    setGravity(args) {
         world.SetGravity(new b2Vec2(Cast.toNumber(args.gx), Cast.toNumber(args.gy)));
         for (const bodyID in bodies) {
             bodies[bodyID].SetAwake(true);
