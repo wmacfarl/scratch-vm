@@ -368,6 +368,8 @@ class Scratch3Physics {
         );
         this.runtime.stepPhysics = this.doTick.bind(this);
         this.runtime.setIsWall = this.setWall.bind(this);
+        this.runtime.savePhysics = this.saveSnapshot.bind(this);
+        this.runtime.loadPhysics = this.loadSnapshot.bind(this);
         this.runtime.physicsData = {
             world: world,
             bodies: bodies,
@@ -400,10 +402,6 @@ class Scratch3Physics {
         // todo: delete joins?
     }
 
-    /**
-     * The key to load & store a target's music-related state.
-     * @type {string}
-     */
     static get STATE_KEY() {
         return 'Scratch.physics';
     }
@@ -1567,6 +1565,96 @@ class Scratch3Physics {
             bodies[bodyID].SetAwake(true);
         }
     }
+
+    loadSnapshot(snapshot) {
+        this.reset();
+        if (!snapshot || !snapshot.bodies) {
+            return;
+        }
+        const _bodies = snapshot.bodies;
+        const _pinned = snapshot.pinned;
+        const _stageBodies = snapshot.stageBodies;
+        const _scroll = snapshot.scroll;
+        this.runtime.targets.forEach(target => {
+            const body = _bodies[target.id];
+            if (body) {
+                this.setPhysicsFor(target);
+                const b = bodies[target.id];
+                b.SetPosition(body.position);
+                b.SetAngle(body.angle);
+                b.SetLinearVelocity(body.linearVelocity);
+                b.SetAngularVelocity(body.angularVelocity);
+                b.SetFixedRotation(body.fixedRotation);
+                b.SetType(body.type);
+            }
+        })
+
+        Object.keys(_pinned).forEach(key => {
+            const joint = _pinned[key];
+            _createJointOfType(null, joint.type, joint.bodyA, joint.anchorA.x, joint.anchorA.y, joint.bodyB, joint.anchorB.x, joint.anchorB.y);
+        })
+
+        _stageBodies.forEach(body => {
+            const b = _placeBody(null, body.position.x, body.position.y, body.angle);
+            stageBodies.push(b);
+        })
+    }
+
+    saveSnapshot() {
+        const _bodies = serializeBodies(bodies);
+        const _pinned = serializeJoints(pinned);
+        const _stageBodies = serializeStageBodies(stageBodies);
+        return {
+            bodies: _bodies,
+            pinned: _pinned,
+            stageBodies: _stageBodies,
+            scroll: _scroll
+        };
+    }
 }
+
+function serializeBodies(bodies) {
+    const _bodies = {};
+    for (const key in bodies) {
+        const body = bodies[key];
+        _bodies[key] = {
+            position: body.GetPosition(),
+            angle: body.GetAngle(),
+            linearVelocity: body.GetLinearVelocity(),
+            angularVelocity: body.GetAngularVelocity(),
+            fixedRotation: body.IsFixedRotation(),
+            type: body.GetType()
+        };
+    }
+    return _bodies;
+}
+
+function serializeJoints(joints) {
+    const _joints = {};
+    for (const key in joints) {
+        const joint = joints[key];
+        _joints[key] = {
+            type: joint.GetType(),
+            bodyA: joint.GetBodyA().uid,
+            bodyB: joint.GetBodyB().uid,
+            anchorA: joint.GetAnchorA(),
+            anchorB: joint.GetAnchorB()
+        };
+    }
+    return _joints;
+}
+
+function serializeStageBodies(stageBodies) {
+    const _stageBodies = [];
+    for (const key in stageBodies) {
+        const body = stageBodies[key];
+        _stageBodies.push({
+            position: body.GetPosition(),
+            angle: body.GetAngle()
+        });
+    }
+    return _stageBodies;
+}
+
 
 module.exports = Scratch3Physics;
