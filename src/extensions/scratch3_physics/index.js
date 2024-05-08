@@ -36,7 +36,7 @@ const b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
 const b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef;
 const b2Math = Box2D.Common.Math.b2Math;
 
-let world; let zoom;
+
 
 const fixDef = new b2FixtureDef();
 const bodyDef = new b2BodyDef();
@@ -49,15 +49,11 @@ const prevPos = {};
  * Active b2Body/s in the world.
  * @type {Object.<string,*>}
  */
+let world; let zoom;
 const bodies = {};
-// const joints = {};
 const pinned = {}; // Map of IDs to pinned joints
-/**
- * The runtime instantiating this block package.
- * @type {Array}
- */
 const stageBodies = [];
-
+const _scroll = new b2Vec2(0, 0);
 // const categorySeq = 1;
 // const categories = {default: 1};
 
@@ -68,7 +64,7 @@ const bodyMaskBits = 1;
 const toRad = Math.PI / 180;
 
 // Used to record the scroll position of all sprites
-const _scroll = new b2Vec2(0, 0);
+
 
 const STAGE_TYPE_OPTIONS = {
     BOXED: 'boxed',
@@ -372,6 +368,13 @@ class Scratch3Physics {
         );
         this.runtime.stepPhysics = this.doTick.bind(this);
         this.runtime.setIsWall = this.setWall.bind(this);
+        this.runtime.physicsData = {
+            world: world,
+            bodies: bodies,
+            pinned: pinned,
+            stageBodies: stageBodies,
+            _scroll: _scroll
+        }
         zoom = 50; // scale;
 
         this.map = {};
