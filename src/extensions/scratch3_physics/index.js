@@ -269,7 +269,6 @@ const createStageBody = function () {
     const body = world.CreateBody(bodyDef);
     body.CreateFixture(fixDef);
 
-
     // Determine the new category and mask bits based on the isWall flag
     let categoryBits = CATEGORY_WALLS
     let maskBits = CATEGORY_WALLS | CATEGORY_NOT_WALLS
@@ -367,6 +366,8 @@ class Scratch3Physics {
             new b2Vec2(0, 0), // gravity (10)
             true // allow sleep
         );
+        const contactListener = new MyContactListener();
+world.SetContactListener(contactListener);
         this.runtime.stepPhysics = this.doTick.bind(this);
         this.runtime.setIsWall = this.setWall.bind(this);
         this.runtime.savePhysics = this.saveSnapshot.bind(this);
@@ -482,32 +483,21 @@ class Scratch3Physics {
                         }
                     }
                 },
-                // {
-                //     opcode: 'setPhysics',
-                //     blockType: BlockType.COMMAND,
-                //     text: formatMessage({
-                //         id: 'physics.setPhysics',
-                //         default: 'enable physics for sprite [shape]',
-                //         description: 'Enable Physics for this Sprite'
-                //     }),
-                //     arguments: {
-                //         shape: {
-                //             type: ArgumentType.STRING,
-                //             menu: 'ShapeTypes',
-                //             defaultValue: 'costume'
-                //         }
-                //     }
-                // },
-                // {
-                //     opcode: 'setPhysicsAll',
-                //     blockType: BlockType.COMMAND,
-                //     text: formatMessage({
-                //         id: 'physics.setPhysicsAll',
-                //         default: 'enable physics for all sprites',
-                //         description: 'Enable Physics For All Sprites'
-                //     })
-                // },
-                //
+                {
+                    opcode: 'setBounciness',
+                    blockType: BlockType.COMMAND,
+                    text: formatMessage({
+                        id: 'physics.setBounciness',
+                        default: 'set bounciness to [BOUNCINESS]',
+                        description: 'Set the bounciness for this object'
+                    }),
+                    arguments: {
+                        BOUNCINESS: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 0.5  // Default bounciness
+                        }
+                    }
+                },
                 '---',
 
                 {
@@ -920,7 +910,7 @@ class Scratch3Physics {
         this._checkMoved();
 
         // world.Step(1 / 30, 10, 10);
-        world.Step(1 / 30, 10, 10);
+        world.Step(1 / 30, 20, 20);
         world.ClearForces();
 
         for (const targetID in bodies) {
@@ -1209,6 +1199,19 @@ class Scratch3Physics {
             }
         }
     }
+
+    setBounciness(args, util) {
+        const bounciness = Cast.toNumber(args.BOUNCINESS);
+        let body = bodies[util.target.id];
+        if (!body) {
+            body = this.setPhysicsFor(util.target);
+        }
+        const fixtures = body.GetFixtureList();
+        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+            fixture.SetRestitution(bounciness);
+        }
+    }
+    
 
     applyForce(args, util) {
         _applyForce(util.target.id, 'Impulse', 0, 0,
@@ -1672,6 +1675,27 @@ function serializeStageBodies(stageBodies) {
     }
     return _stageBodies;
 }
+
+class MyContactListener extends Box2D.Dynamics.b2ContactListener {
+    PostSolve(contact, impulse) {
+        const fixtureA = contact.GetFixtureA();
+        const fixtureB = contact.GetFixtureB();
+        const bodyA = fixtureA.GetBody();
+        const bodyB = fixtureB.GetBody();
+
+        // Check if either fixture has zero restitution
+        if (fixtureA.GetRestitution() === 0 || fixtureB.GetRestitution() === 0) {
+            // Zero out both linear and angular velocities if the impulse suggests a significant impact
+            if (Math.abs(impulse.normalImpulses[0]) > 0.01) {
+                bodyA.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0));
+                bodyA.SetAngularVelocity(0);
+                bodyB.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0));
+                bodyB.SetAngularVelocity(0);
+            }
+        }
+    }
+}
+
 
 
 module.exports = Scratch3Physics;
