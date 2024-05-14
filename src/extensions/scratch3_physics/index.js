@@ -17,6 +17,7 @@ const formatMessage = require('format-message');
 
 // const Box2D = require('./Box2d.min').box2d;
 const Box2D = require('./box2d_es6');
+const { is } = require('immutable');
 
 // window.decomp = require('poly-decomp');
 
@@ -1061,16 +1062,17 @@ class Scratch3Physics {
         if (target.isStage || target.isPhysicsWall === isWall) {
             return;
         }
+    
         // Retrieve the Box2D body associated with the target
         let body = bodies[target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
         }
-
+    
         // Determine the new category and mask bits based on the isWall flag
         let categoryBits = isWall ? CATEGORY_WALLS : CATEGORY_NOT_WALLS;
-        let maskBits = isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS; // Walls collide with both, Not Walls only with Walls
-
+        let maskBits = isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS;
+    
         // Loop through all fixtures of the body and update their filter data
         for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
             let filter = fixture.GetFilterData();
@@ -1078,11 +1080,26 @@ class Scratch3Physics {
             filter.maskBits = maskBits;
             fixture.SetFilterData(filter);
         }
+    
         // Optionally, update any metadata or properties you use to track the wall state of the target
         const variable = target.lookupOrCreateVariable(`$is_wall?_${target.sprite.clones[0].id}`, 'is wall?');
         variable.value = isWall;
+    
         target.isPhysicsWall = isWall;
+    
+        // Wake up the body so that it's active in the next step
+        body.SetAwake(true);
+    
+        // Clear contacts by flagging them for filtering
+        let contactEdge = body.GetContactList();
+        while (contactEdge) {
+            let contact = contactEdge.contact;
+            // Mark the contact for a new filtering evaluation
+            contact.FlagForFiltering();
+            contactEdge = contactEdge.next;
+        }
     }
+    
 
 
     setPhysicsFor(target) {
