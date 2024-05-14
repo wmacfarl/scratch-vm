@@ -1114,8 +1114,8 @@ class Scratch3Physics {
         if (hitboxCostumeIndex !== -1) {
             hitboxCostume = target.getCostumes()[hitboxCostumeIndex];
         }
-        const currentCostume = target.getCurrentCostume(); // Method to get the current costume name
-        const currentCostumeIndex = target.getCostumeIndexByName(currentCostume); // Method to get a costume by name
+        const currentCostume = target.getCurrentCostume(); // Method to get the current costume
+        const currentCostumeIndex = target.getCostumeIndexByName(currentCostume.name); // Method to get a costume by name
         let costumeToUse = hitboxCostume || currentCostume // Use 'hitbox' costume if available, otherwise current costume
         target.physicsCostumeName = costumeToUse.name;
         const costumeToUseIndex = target.getCostumeIndexByName(costumeToUse.name); // Method to get a costume by name
