@@ -400,7 +400,12 @@ world.SetContactListener(contactListener);
             delete bodies[body];
             delete prevPos[body];
         }
-
+        //delete all stage bodies
+        for (const stageBodyID in stageBodies) {
+            world.DestroyBody(stageBodies[stageBodyID]);
+            delete stageBodies[stageBodyID];
+        }
+        
         // todo: delete joins?
     }
 
