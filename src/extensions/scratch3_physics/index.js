@@ -1,23 +1,32 @@
 // https://cdn.jsdelivr.net/gh/physics/physics.github.io/testExtension.js
-const CATEGORY_WALLS = 0x0002;
-const CATEGORY_NOT_WALLS = 0x0004;
+const CATEGORY_WALLS = 0x0001;
+const CATEGORY_NOT_WALLS = 0x0002;
+const CATEGORY_STAGE_WALLS = 0x0004;
 const CATEGORY_HIDDEN = 0x0008; 
-const ArgumentType = require('../../extension-support/argument-type');
-const BlockType = require('../../extension-support/block-type');
+
+// Masks
+const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS | CATEGORY_STAGE_WALLS; // WALLS collide with everything
+const MASK_NOT_WALLS = CATEGORY_WALLS | CATEGORY_STAGE_WALLS; // NOT_WALLS should be affected by WALLS and STAGE_WALLS
+const MASK_STAGE_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // STAGE_WALLS affect WALLS and NOT_WALLS
+
+const MASK_SCREENWRAP = CATEGORY_WALLS; // Ignores STAGE_WALLS
+
+const ArgumentType = require("../../extension-support/argument-type");
+const BlockType = require("../../extension-support/block-type");
 // const MathUtil = require('../../util/math-util');
 // const Clone = require('../../util/clone');
-const Cast = require('../../util/cast');
-const Runtime = require('../../engine/runtime');
-const RenderedTarget = require('../../sprites/rendered-target');
-const formatMessage = require('format-message');
+const Cast = require("../../util/cast");
+const Runtime = require("../../engine/runtime");
+const RenderedTarget = require("../../sprites/rendered-target");
+const formatMessage = require("format-message");
 // const MathUtil = require('../../util/math-util');
 // const Timer = require('../../util/timer');
 // const Matter = require('matterJs/matter');
 // const Matter = require('matter-js');
 
 // const Box2D = require('./Box2d.min').box2d;
-const Box2D = require('./box2d_es6');
-const { is } = require('immutable');
+const Box2D = require("./box2d_es6");
+const { is } = require("immutable");
 
 // window.decomp = require('poly-decomp');
 
@@ -37,8 +46,6 @@ const b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
 const b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef;
 const b2Math = Box2D.Common.Math.b2Math;
 
-
-
 const fixDef = new b2FixtureDef();
 const bodyDef = new b2BodyDef();
 
@@ -50,7 +57,8 @@ const prevPos = {};
  * Active b2Body/s in the world.
  * @type {Object.<string,*>}
  */
-let world; let zoom;
+let world;
+let zoom;
 const bodies = {};
 const pinned = {}; // Map of IDs to pinned joints
 const stageBodies = [];
@@ -58,37 +66,34 @@ const _scroll = new b2Vec2(0, 0);
 // const categorySeq = 1;
 // const categories = {default: 1};
 
-const bodyCategoryBits = 1;
-const bodyMaskBits = 1;
 // const noCollideSeq = 0;
 
 const toRad = Math.PI / 180;
 
 // Used to record the scroll position of all sprites
 
-
 const STAGE_TYPE_OPTIONS = {
-    BOXED: 'boxed',
-    FLOOR: 'floor',
-    OPEN: 'open'
+    BOXED: "boxed",
+    FLOOR: "floor",
+    OPEN: "open",
 };
 
 const SPACE_TYPE_OPTIONS = {
-    WORLD: 'world',
-    STAGE: 'stage',
-    RELATIVE: 'relative'
+    WORLD: "world",
+    STAGE: "stage",
+    RELATIVE: "relative",
 };
 
 const WHERE_TYPE_OPTIONS = {
-    ANY: 'any',
-    FEET: 'feet'
+    ANY: "any",
+    FEET: "feet",
 };
 
 const SHAPE_TYPE_OPTIONS = {
-    COSTUME: 'costume',
-    CIRCLE: 'circle',
-    SVG_POLYGON: 'svg',
-    ALL: 'all'
+    COSTUME: "costume",
+    CIRCLE: "circle",
+    SVG_POLYGON: "svg",
+    ALL: "all",
 };
 
 const _definePolyFromHull = function (hullPoints) {
@@ -99,8 +104,14 @@ const _definePolyFromHull = function (hullPoints) {
     let prev = null;
     for (let i = hullPoints.length - 1; i >= 0; i--) {
         // for (let i = 0; i < hullPoints.length; i++) {
-        const b2Vec = new b2Vec2(hullPoints[i].x / zoom, hullPoints[i].y / zoom);
-        if (prev !== null && b2Math.SubtractVV(b2Vec, prev).LengthSquared() > Number.MIN_VALUE) {
+        const b2Vec = new b2Vec2(
+            hullPoints[i].x / zoom,
+            hullPoints[i].y / zoom
+        );
+        if (
+            prev !== null &&
+            b2Math.SubtractVV(b2Vec, prev).LengthSquared() > Number.MIN_VALUE
+        ) {
             vertices.push(b2Vec);
         }
         prev = b2Vec;
@@ -113,9 +124,6 @@ const _placeBody = function (id, x, y, dir) {
     if (bodies[id]) {
         world.DestroyBody(bodies[id]);
     }
-
-    fixDef.filter.categoryBits = bodyCategoryBits;
-    fixDef.filter.maskBits = bodyMaskBits;
 
     bodyDef.position.x = (x + _scroll.x) / zoom;
     bodyDef.position.y = (y + _scroll.y) / zoom;
@@ -136,15 +144,21 @@ const _applyForce = function (id, ftype, x, y, dir, pow) {
 
     dir = (90 - dir) * toRad;
 
-    if (ftype === 'Impulse') {
-
+    if (ftype === "Impulse") {
         const center = body.GetLocalCenter(); // get the mass data from you body
 
-        body.ApplyImpulse({ x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
-            body.GetWorldPoint({ x: (x / zoom) + center.x, y: (y / zoom) + center.y }));
-    } else if (ftype === 'World Impulse') {
-        body.ApplyForce({ x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
-            { x: x / zoom, y: y / zoom });
+        body.ApplyImpulse(
+            { x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
+            body.GetWorldPoint({
+                x: x / zoom + center.x,
+                y: y / zoom + center.y,
+            })
+        );
+    } else if (ftype === "World Impulse") {
+        body.ApplyForce(
+            { x: pow * Math.cos(dir), y: pow * Math.sin(dir) },
+            { x: x / zoom, y: y / zoom }
+        );
     }
 };
 
@@ -156,8 +170,16 @@ const _defineSpring = function (len, damp, freq) {
     defSpring.freq = freq > 0 ? freq : 5;
 };
 
-const _createJointOfType = function (jName, typ, bodyID, x, y, bodyID2, x2, y2) {
-
+const _createJointOfType = function (
+    jName,
+    typ,
+    bodyID,
+    x,
+    y,
+    bodyID2,
+    x2,
+    y2
+) {
     // if (jName.length > 0) ext.destroyJoint(jName);
 
     if (!bodyID) bodyID = null;
@@ -173,7 +195,7 @@ const _createJointOfType = function (jName, typ, bodyID, x, y, bodyID2, x2, y2) 
 
     let md;
     switch (typ) {
-        case 'Spring':
+        case "Spring":
             md = new Box2D.Dynamics.Joints.b2DistanceJointDef();
             md.length = defSpring.len;
             md.dampingRatio = defSpring.damp;
@@ -184,7 +206,7 @@ const _createJointOfType = function (jName, typ, bodyID, x, y, bodyID2, x2, y2) 
             md.localAnchorB = { x: x2 / zoom, y: y2 / zoom };
             break;
 
-        case 'Rotating':
+        case "Rotating":
             md = new Box2D.Dynamics.Joints.b2RevoluteJointDef();
             md.bodyA = body;
             md.bodyB = body2;
@@ -193,14 +215,17 @@ const _createJointOfType = function (jName, typ, bodyID, x, y, bodyID2, x2, y2) 
                 if (body2) {
                     md.localAnchorB = body2.GetLocalPoint(body.GetPosition()); // Wheel Type Joint...
                 } else {
-                    md.localAnchorB = body.GetWorldPoint({ x: (x / zoom), y: (y / zoom) });
+                    md.localAnchorB = body.GetWorldPoint({
+                        x: x / zoom,
+                        y: y / zoom,
+                    });
                 }
             } else {
                 md.localAnchorB = { x: x2 / zoom, y: y2 / zoom };
             }
             break;
 
-        case 'Mouse':
+        case "Mouse":
             md = new b2MouseJointDef();
             if (bodyID) {
                 md.bodyB = body;
@@ -251,7 +276,7 @@ const _setXY = function (rt, x, y, force) {
         rt.y = y; // position[1];
 
         rt.renderer.updateDrawableProperties(rt.drawableID, {
-            position: [x, y]
+            position: [x, y],
         });
         if (rt.visible) {
             rt.emit(RenderedTarget.EVENT_TARGET_VISUAL_CHANGE, rt);
@@ -269,11 +294,16 @@ const createStageBody = function () {
     const body = world.CreateBody(bodyDef);
     body.CreateFixture(fixDef);
 
-    // Determine the new category and mask bits based on the isWall flag
-    let categoryBits = CATEGORY_WALLS
-    let maskBits = CATEGORY_WALLS | CATEGORY_NOT_WALLS
+    // Set the correct category bits for stage walls
+    let categoryBits = CATEGORY_STAGE_WALLS;
+    let maskBits = MASK_STAGE_WALLS; // This will only allow collision with types that should collide with stage walls
+
     // Loop through all fixtures of the body and update their filter data
-    for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+    for (
+        let fixture = body.GetFixtureList();
+        fixture;
+        fixture = fixture.GetNext()
+    ) {
         let filter = fixture.GetFilterData();
         filter.categoryBits = categoryBits;
         filter.maskBits = maskBits;
@@ -283,7 +313,6 @@ const createStageBody = function () {
 };
 
 const _setStageType = function (type) {
-
     // Clear down previous stage
     if (stageBodies.length > 0) {
         for (const stageBodyID in stageBodies) {
@@ -308,7 +337,6 @@ const _setStageType = function (type) {
         createStageBody();
         bodyDef.position.Set(250 / zoom, 540 / zoom);
         createStageBody();
-
     } else if (type === STAGE_TYPE_OPTIONS.FLOOR) {
         fixDef.shape.SetAsBox(5000 / zoom, 100 / zoom);
         bodyDef.position.Set(0, -280 / zoom);
@@ -335,14 +363,16 @@ const _setStageType = function (type) {
  * @type {string}
  */
 // eslint-disable-next-line max-len
-const blockIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmE9Imh0dHA6Ly9ucy5hZG9iZS5jb20vQWRvYmVTVkdWaWV3ZXJFeHRlbnNpb25zLzMuMC8iDQoJIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSItMy43IC0zLjcgNDAgNDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgLTMuNyAtMy43IDQwIDQwIg0KCSB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxkZWZzPg0KPC9kZWZzPg0KPHJlY3QgeD0iOC45IiB5PSIxLjUiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxLjUiIHk9IjE2LjMiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxNi4zIiB5PSIxNi4zIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiMxNjlGQjAiIHN0cm9rZS13aWR0aD0iMyIgd2lkdGg9IjE0LjgiIGhlaWdodD0iMTQuOCIvPg0KPC9zdmc+';
+const blockIconURI =
+    "data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmE9Imh0dHA6Ly9ucy5hZG9iZS5jb20vQWRvYmVTVkdWaWV3ZXJFeHRlbnNpb25zLzMuMC8iDQoJIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSItMy43IC0zLjcgNDAgNDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgLTMuNyAtMy43IDQwIDQwIg0KCSB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxkZWZzPg0KPC9kZWZzPg0KPHJlY3QgeD0iOC45IiB5PSIxLjUiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxLjUiIHk9IjE2LjMiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxNi4zIiB5PSIxNi4zIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiMxNjlGQjAiIHN0cm9rZS13aWR0aD0iMyIgd2lkdGg9IjE0LjgiIGhlaWdodD0iMTQuOCIvPg0KPC9zdmc+";
 
 /**
  * Icon svg to be displayed in the category menu, encoded as a data URI.
  * @type {string}
  */
 // eslint-disable-next-line max-len
-const menuIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmE9Imh0dHA6Ly9ucy5hZG9iZS5jb20vQWRvYmVTVkdWaWV3ZXJFeHRlbnNpb25zLzMuMC8iDQoJIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSItMy43IC0zLjcgNDAgNDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgLTMuNyAtMy43IDQwIDQwIg0KCSB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxkZWZzPg0KPC9kZWZzPg0KPHJlY3QgeD0iOC45IiB5PSIxLjUiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxLjUiIHk9IjE2LjMiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxNi4zIiB5PSIxNi4zIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiMxNjlGQjAiIHN0cm9rZS13aWR0aD0iMyIgd2lkdGg9IjE0LjgiIGhlaWdodD0iMTQuOCIvPg0KPC9zdmc+';
+const menuIconURI =
+    "data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmE9Imh0dHA6Ly9ucy5hZG9iZS5jb20vQWRvYmVTVkdWaWV3ZXJFeHRlbnNpb25zLzMuMC8iDQoJIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSItMy43IC0zLjcgNDAgNDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgLTMuNyAtMy43IDQwIDQwIg0KCSB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxkZWZzPg0KPC9kZWZzPg0KPHJlY3QgeD0iOC45IiB5PSIxLjUiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxLjUiIHk9IjE2LjMiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxNi4zIiB5PSIxNi4zIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiMxNjlGQjAiIHN0cm9rZS13aWR0aD0iMyIgd2lkdGg9IjE0LjgiIGhlaWdodD0iMTQuOCIvPg0KPC9zdmc+";
 
 /**
  * Class for the music-related blocks in Scratch 3.0
@@ -350,9 +380,8 @@ const menuIconURI = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtb
  * @constructor
  */
 class Scratch3Physics {
-
     constructor(runtime) {
-        console.log("Physics Extension Loaded")
+        console.log("Physics Extension Loaded");
         /**
          * The runtime instantiating this block package.
          * @type {Runtime}
@@ -367,18 +396,20 @@ class Scratch3Physics {
             true // allow sleep
         );
         const contactListener = new MyContactListener();
-world.SetContactListener(contactListener);
+        world.SetContactListener(contactListener);
         this.runtime.stepPhysics = this.doTick.bind(this);
         this.runtime.setIsWall = this.setWall.bind(this);
         this.runtime.savePhysics = this.saveSnapshot.bind(this);
         this.runtime.loadPhysics = this.loadSnapshot.bind(this);
+        this.runtime.setScreenwrap = this.setAllowScreenwrap.bind(this);
+
         this.runtime.physicsData = {
             world: world,
             bodies: bodies,
             pinned: pinned,
             stageBodies: stageBodies,
-            _scroll: _scroll
-        }
+            _scroll: _scroll,
+        };
         zoom = 50; // scale;
 
         this.map = {};
@@ -391,6 +422,7 @@ world.SetContactListener(contactListener);
     }
 
     reset() {
+        console.log("Physics Extension Reset, bodies", bodies);
         for (const body in bodies) {
             if (pinned[body.uid]) {
                 world.DestroyJoint(pinned[body.uid]);
@@ -405,12 +437,13 @@ world.SetContactListener(contactListener);
             world.DestroyBody(stageBodies[stageBodyID]);
             delete stageBodies[stageBodyID];
         }
-        
+
         // todo: delete joins?
+        _setStageType(STAGE_TYPE_OPTIONS.BOXED);
     }
 
     static get STATE_KEY() {
-        return 'Scratch.physics';
+        return "Scratch.physics";
     }
 
     /**
@@ -418,11 +451,11 @@ world.SetContactListener(contactListener);
      */
     getInfo() {
         return {
-            id: 'physics',
+            id: "physics",
             name: formatMessage({
-                id: 'physics.categoryName',
-                default: 'Physics',
-                description: 'Label for the physics extension category'
+                id: "physics.categoryName",
+                default: "Physics",
+                description: "Label for the physics extension category",
             }),
             menuIconURI: menuIconURI,
             blockIconURI: blockIconURI,
@@ -430,236 +463,236 @@ world.SetContactListener(contactListener);
                 // Global Setup ------------------
 
                 {
-                    opcode: 'setStage',
+                    opcode: "setStage",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setStage',
-                        default: 'setup stage [stageType]',
-                        description: 'Set the stage type'
+                        id: "physics.setStage",
+                        default: "setup stage [stageType]",
+                        description: "Set the stage type",
                     }),
                     arguments: {
                         stageType: {
                             type: ArgumentType.STRING,
-                            menu: 'StageTypes',
-                            defaultValue: STAGE_TYPE_OPTIONS.BOXED
-                        }
-                    }
+                            menu: "StageTypes",
+                            defaultValue: STAGE_TYPE_OPTIONS.BOXED,
+                        },
+                    },
                 },
                 {
-                    opcode: 'setGravity',
+                    opcode: "setGravity",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setGravity',
-                        default: 'set gravity to x: [gx] y: [gy]',
-                        description: 'Set the gravity'
+                        id: "physics.setGravity",
+                        default: "set gravity to x: [gx] y: [gy]",
+                        description: "Set the gravity",
                     }),
                     arguments: {
                         gx: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         gy: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: -10
-                        }
-                    }
+                            defaultValue: -10,
+                        },
+                    },
                 },
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'setPhysics',
+                    opcode: "setPhysics",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setPhysics',
-                        default: 'enable for [shape] mode [mode]',
-                        description: 'Enable Physics for this Sprite'
+                        id: "physics.setPhysics",
+                        default: "enable for [shape] mode [mode]",
+                        description: "Enable Physics for this Sprite",
                     }),
                     arguments: {
                         shape: {
                             type: ArgumentType.STRING,
-                            menu: 'ShapeTypes',
-                            defaultValue: 'costume'
+                            menu: "ShapeTypes",
+                            defaultValue: "costume",
                         },
                         mode: {
                             type: ArgumentType.STRING,
-                            menu: 'EnableModeTypes',
-                            defaultValue: 'normal'
-                        }
-                    }
+                            menu: "EnableModeTypes",
+                            defaultValue: "normal",
+                        },
+                    },
                 },
                 {
-                    opcode: 'setBounciness',
+                    opcode: "setBounciness",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setBounciness',
-                        default: 'set bounciness to [BOUNCINESS]',
-                        description: 'Set the bounciness for this object'
+                        id: "physics.setBounciness",
+                        default: "set bounciness to [BOUNCINESS]",
+                        description: "Set the bounciness for this object",
                     }),
                     arguments: {
                         BOUNCINESS: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0.5  // Default bounciness
-                        }
-                    }
+                            defaultValue: 0.5, // Default bounciness
+                        },
+                    },
                 },
-                '---',
+                "---",
 
                 {
-                    opcode: 'doTick',
+                    opcode: "doTick",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.doTick',
-                        default: 'step simulation',
-                        description: 'Run a single tick of the physics simulation'
-                    })
+                        id: "physics.doTick",
+                        default: "step simulation",
+                        description:
+                            "Run a single tick of the physics simulation",
+                    }),
                 },
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'setPosition',
+                    opcode: "setPosition",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setPosition',
-                        default: 'go to x: [x] y: [y] [space]',
-                        description: 'Position Sprite'
+                        id: "physics.setPosition",
+                        default: "go to x: [x] y: [y] [space]",
+                        description: "Position Sprite",
                     }),
                     arguments: {
                         x: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         y: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         space: {
                             type: ArgumentType.STRING,
-                            menu: 'SpaceTypes',
-                            defaultValue: 'world'
-                        }
-                    }
+                            menu: "SpaceTypes",
+                            defaultValue: "world",
+                        },
+                    },
                 },
 
-
-                '---',
-
+                "---",
 
                 // applyForce (target, ftype, x, y, dir, pow) {
                 // applyAngForce (target, pow) {
 
                 {
-                    opcode: 'setVelocity',
+                    opcode: "setVelocity",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setVelocity',
-                        default: 'set velocity to sx: [sx] sy: [sy]',
-                        description: 'Set Velocity'
+                        id: "physics.setVelocity",
+                        default: "set velocity to sx: [sx] sy: [sy]",
+                        description: "Set Velocity",
                     }),
                     arguments: {
                         sx: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         sy: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'changeVelocity',
+                    opcode: "changeVelocity",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.changeVelocity',
-                        default: 'change velocity by sx: [sx] sy: [sy]',
-                        description: 'Change Velocity'
+                        id: "physics.changeVelocity",
+                        default: "change velocity by sx: [sx] sy: [sy]",
+                        description: "Change Velocity",
                     }),
                     arguments: {
                         sx: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         sy: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'getVelocityX',
+                    opcode: "getVelocityX",
                     text: formatMessage({
-                        id: 'physics.getVelocityX',
-                        default: 'x velocity',
-                        description: 'get the x velocity'
+                        id: "physics.getVelocityX",
+                        default: "x velocity",
+                        description: "get the x velocity",
                     }),
-                    blockType: BlockType.REPORTER
+                    blockType: BlockType.REPORTER,
                 },
                 {
-                    opcode: 'getVelocityY',
+                    opcode: "getVelocityY",
                     text: formatMessage({
-                        id: 'physics.getVelocityY',
-                        default: 'y velocity',
-                        description: 'get the y velocity'
+                        id: "physics.getVelocityY",
+                        default: "y velocity",
+                        description: "get the y velocity",
                     }),
-                    blockType: BlockType.REPORTER
+                    blockType: BlockType.REPORTER,
                 },
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'applyForce',
+                    opcode: "applyForce",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.applyForce',
-                        default: 'push with force [force] in direction [dir]',
-                        description: 'Push this object in a given direction'
+                        id: "physics.applyForce",
+                        default: "push with force [force] in direction [dir]",
+                        description: "Push this object in a given direction",
                     }),
                     arguments: {
                         force: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 25
+                            defaultValue: 25,
                         },
                         dir: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'applyAngForce',
+                    opcode: "applyAngForce",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.applyAngForce',
-                        default: 'spin with force [force]',
-                        description: 'Push this object in a given direction'
+                        id: "physics.applyAngForce",
+                        default: "spin with force [force]",
+                        description: "Push this object in a given direction",
                     }),
                     arguments: {
                         force: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 500
-                        }
-                    }
+                            defaultValue: 500,
+                        },
+                    },
                 },
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'setStatic',
+                    opcode: "setStatic",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setStatic',
-                        default: 'set fixed [static]',
-                        description: 'Sets whether this block is static or dynamic'
+                        id: "physics.setStatic",
+                        default: "set fixed [static]",
+                        description:
+                            "Sets whether this block is static or dynamic",
                     }),
                     arguments: {
                         static: {
                             type: ArgumentType.STRING,
-                            menu: 'StaticTypes',
-                            defaultValue: 'static'
-                        }
-                    }
+                            menu: "StaticTypes",
+                            defaultValue: "static",
+                        },
+                    },
                 },
                 // {
                 //     opcode: 'setDensity',
@@ -677,30 +710,31 @@ world.SetContactListener(contactListener);
                 //     }
                 // },
                 {
-                    opcode: 'setProperties',
+                    opcode: "setProperties",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setProperties',
-                        default: 'set density [density] roughness [friction] bounce [restitution]',
-                        description: 'Set the density of the object'
+                        id: "physics.setProperties",
+                        default:
+                            "set density [density] roughness [friction] bounce [restitution]",
+                        description: "Set the density of the object",
                     }),
                     arguments: {
                         density: {
                             type: ArgumentType.NUMBER,
-                            menu: 'DensityTypes',
-                            defaultValue: 100
+                            menu: "DensityTypes",
+                            defaultValue: 100,
                         },
                         friction: {
                             type: ArgumentType.NUMBER,
-                            menu: 'FrictionTypes',
-                            defaultValue: 50
+                            menu: "FrictionTypes",
+                            defaultValue: 50,
                         },
                         restitution: {
                             type: ArgumentType.NUMBER,
-                            menu: 'RestitutionTypes',
-                            defaultValue: 20
-                        }
-                    }
+                            menu: "RestitutionTypes",
+                            defaultValue: 20,
+                        },
+                    },
                 },
                 // {
                 //     opcode: 'pinSprite',
@@ -722,85 +756,88 @@ world.SetContactListener(contactListener);
                 //     }
                 // },
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'getTouching',
+                    opcode: "getTouching",
                     text: formatMessage({
-                        id: 'physics.getTouching',
-                        default: 'touching [where]',
-                        description: 'get the name of any sprites we are touching'
+                        id: "physics.getTouching",
+                        default: "touching [where]",
+                        description:
+                            "get the name of any sprites we are touching",
                     }),
                     blockType: BlockType.REPORTER,
                     arguments: {
                         where: {
                             type: ArgumentType.STRING,
-                            menu: 'WhereTypes',
-                            defaultValue: 'any'
-                        }
-                    }
+                            menu: "WhereTypes",
+                            defaultValue: "any",
+                        },
+                    },
                 },
 
                 // Scene Scrolling -------------------
 
-                '---',
+                "---",
 
                 {
-                    opcode: 'setScroll',
+                    opcode: "setScroll",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.setScroll',
-                        default: 'set scroll x: [ox] y: [oy]',
-                        description: 'Sets whether this block is static or dynamic'
+                        id: "physics.setScroll",
+                        default: "set scroll x: [ox] y: [oy]",
+                        description:
+                            "Sets whether this block is static or dynamic",
                     }),
                     arguments: {
                         ox: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         oy: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'changeScroll',
+                    opcode: "changeScroll",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
-                        id: 'physics.changeScroll',
-                        default: 'change scroll by x: [ox] y: [oy]',
-                        description: 'Sets whether this block is static or dynamic'
+                        id: "physics.changeScroll",
+                        default: "change scroll by x: [ox] y: [oy]",
+                        description:
+                            "Sets whether this block is static or dynamic",
                     }),
                     arguments: {
                         ox: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         oy: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'getScrollX',
+                    opcode: "getScrollX",
                     text: formatMessage({
-                        id: 'physics.getScrollX',
-                        default: 'x scroll',
-                        description: 'get the x scroll'
+                        id: "physics.getScrollX",
+                        default: "x scroll",
+                        description: "get the x scroll",
                     }),
-                    blockType: BlockType.REPORTER
+                    blockType: BlockType.REPORTER,
                 },
                 {
-                    opcode: 'getScrollY',
+                    opcode: "getScrollY",
                     text: formatMessage({
-                        id: 'physics.getScrollY',
-                        default: 'y scroll',
-                        description: 'get the y scroll'
+                        id: "physics.getScrollY",
+                        default: "y scroll",
+                        description: "get the y scroll",
                     }),
-                    blockType: BlockType.REPORTER
-                }
+                    blockType: BlockType.REPORTER,
+                },
 
                 // {
                 //     opcode: 'getStatic',
@@ -822,87 +859,86 @@ world.SetContactListener(contactListener);
                 StaticTypes: this.STATIC_TYPE_MENU,
                 FrictionTypes: this.FRICTION_TYPE_MENU,
                 RestitutionTypes: this.RESTITUTION_TYPE_MENU,
-                DensityTypes: this.DENSITY_TYPE_MENU
-            }
-
+                DensityTypes: this.DENSITY_TYPE_MENU,
+            },
         };
     }
 
     get STAGE_TYPE_MENU() {
         return [
-            { text: 'boxed stage', value: STAGE_TYPE_OPTIONS.BOXED },
-            { text: 'open (with floor)', value: STAGE_TYPE_OPTIONS.FLOOR },
-            { text: 'open (no floor)', value: STAGE_TYPE_OPTIONS.OPEN }
+            { text: "boxed stage", value: STAGE_TYPE_OPTIONS.BOXED },
+            { text: "open (with floor)", value: STAGE_TYPE_OPTIONS.FLOOR },
+            { text: "open (no floor)", value: STAGE_TYPE_OPTIONS.OPEN },
         ];
     }
 
     get SPACE_TYPE_MENU() {
         return [
-            { text: 'in world', value: SPACE_TYPE_OPTIONS.WORLD },
-            { text: 'on stage', value: SPACE_TYPE_OPTIONS.STAGE },
-            { text: 'relative', value: SPACE_TYPE_OPTIONS.RELATIVE }
+            { text: "in world", value: SPACE_TYPE_OPTIONS.WORLD },
+            { text: "on stage", value: SPACE_TYPE_OPTIONS.STAGE },
+            { text: "relative", value: SPACE_TYPE_OPTIONS.RELATIVE },
         ];
     }
 
     get WHERE_TYPE_MENU() {
         return [
-            { text: 'any', value: WHERE_TYPE_OPTIONS.ANY },
-            { text: 'feet', value: WHERE_TYPE_OPTIONS.FEET }
+            { text: "any", value: WHERE_TYPE_OPTIONS.ANY },
+            { text: "feet", value: WHERE_TYPE_OPTIONS.FEET },
         ];
     }
 
     get SHAPE_TYPE_MENU() {
         return [
-            { text: 'this costume', value: SHAPE_TYPE_OPTIONS.COSTUME },
-            { text: 'this circle', value: SHAPE_TYPE_OPTIONS.CIRCLE },
-            { text: 'this polygon', value: SHAPE_TYPE_OPTIONS.SVG_POLYGON },
-            { text: 'all sprites', value: SHAPE_TYPE_OPTIONS.ALL }
+            { text: "this costume", value: SHAPE_TYPE_OPTIONS.COSTUME },
+            { text: "this circle", value: SHAPE_TYPE_OPTIONS.CIRCLE },
+            { text: "this polygon", value: SHAPE_TYPE_OPTIONS.SVG_POLYGON },
+            { text: "all sprites", value: SHAPE_TYPE_OPTIONS.ALL },
         ];
     }
 
     get ENABLE_TYPES_TYPE_MENU() {
         return [
-            { text: 'normal', value: 'normal' },
-            { text: 'precision', value: 'bullet' }
+            { text: "normal", value: "normal" },
+            { text: "precision", value: "bullet" },
         ];
     }
 
     get STATIC_TYPE_MENU() {
         return [
-            { text: 'free', value: 'dynamic' },
-            { text: 'fixed in place', value: 'static' },
-            { text: 'fixed (but can rotate)', value: 'pinned' }
+            { text: "free", value: "dynamic" },
+            { text: "fixed in place", value: "static" },
+            { text: "fixed (but can rotate)", value: "pinned" },
         ];
     }
 
     get DENSITY_TYPE_MENU() {
         return [
-            { text: 'very light', value: '25' },
-            { text: 'light', value: '50' },
-            { text: 'normal', value: '100' },
-            { text: 'heavy', value: '200' },
-            { text: 'very heavy', value: '400' }
+            { text: "very light", value: "25" },
+            { text: "light", value: "50" },
+            { text: "normal", value: "100" },
+            { text: "heavy", value: "200" },
+            { text: "very heavy", value: "400" },
         ];
     }
 
     get FRICTION_TYPE_MENU() {
         return [
-            { text: 'none', value: '0' },
-            { text: 'smooth', value: '20' },
-            { text: 'normal', value: '50' },
-            { text: 'rough', value: '75' },
-            { text: 'extremely rough', value: '100' }
+            { text: "none", value: "0" },
+            { text: "smooth", value: "20" },
+            { text: "normal", value: "50" },
+            { text: "rough", value: "75" },
+            { text: "extremely rough", value: "100" },
         ];
     }
 
     get RESTITUTION_TYPE_MENU() {
         return [
-            { text: 'none', value: '0' },
-            { text: 'little', value: '10' },
-            { text: 'normal', value: '20' },
-            { text: 'quite bouncy', value: '40' },
-            { text: 'very bouncy', value: '70' },
-            { text: 'unstable', value: '100' }
+            { text: "none", value: "0" },
+            { text: "little", value: "10" },
+            { text: "normal", value: "20" },
+            { text: "quite bouncy", value: "40" },
+            { text: "very bouncy", value: "70" },
+            { text: "unstable", value: "100" },
         ];
     }
 
@@ -911,7 +947,8 @@ world.SetContactListener(contactListener);
      * @property {number} x - x offset.
      * @property {number} y - y offset.
      */
-    doTick() { // args, util) {
+    doTick() {
+        // args, util) {
         this._checkMoved();
 
         // world.Step(1 / 30, 10, 10);
@@ -928,31 +965,47 @@ world.SetContactListener(contactListener);
                 delete prevPos[targetID];
                 continue;
             }
-        
-            if (target.physicsCostumeName !== 'hitbox' &&
-                target.physicsCostumeName !== target.getCurrentCostume().name) {
-                    const cachedVelocity = body.GetLinearVelocity();
+
+            if (
+                (target.physicsCostumeName !== "hitbox" &&
+                    target.physicsCostumeName !==
+                        target.getCurrentCostume().name) ||
+                target.size !== target.physicsSize
+            ) {
+                const cachedVelocity = body.GetLinearVelocity();
                 body = this.setPhysicsFor(target);
                 body.SetLinearVelocity(cachedVelocity);
             }
-            if (!target.visible  && !target.isHiddenPhysics){
-                this.setHidden(target, true);                
-            } else if (target.visible && target.isHiddenPhysics){
+            target.physicsSize = target.size;
+            if (!target.visible && !target.isHiddenPhysics) {
+                this.setHidden(target, true);
+            } else if (target.visible && target.isHiddenPhysics) {
                 this.setHidden(target, false);
             }
 
             const position = body.GetPosition();
 
-            _setXY(target, (position.x * zoom) - _scroll.x, (position.y * zoom) - _scroll.y);
-            if (target.rotationStyle === RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
-                target.setDirection(90 - (body.GetAngle() / toRad));
+            _setXY(
+                target,
+                position.x * zoom - _scroll.x,
+                position.y * zoom - _scroll.y
+            );
+            if (
+                target.rotationStyle ===
+                RenderedTarget.ROTATION_STYLE_ALL_AROUND
+            ) {
+                target.setDirection(90 - body.GetAngle() / toRad);
             }
             const pin = pinned[target.id];
             if (!pin) {
                 // clear the angular velocity if not pinned
                 body.SetAngularVelocity(0);
             }
-            prevPos[targetID] = { x: target.x, y: target.y, dir: target.direction };
+            prevPos[targetID] = {
+                x: target.x,
+                y: target.y,
+                dir: target.direction,
+            };
         }
     }
 
@@ -969,28 +1022,32 @@ world.SetContactListener(contactListener);
             }
 
             const prev = prevPos[targetID];
-            const fixedRotation = target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
+            const fixedRotation =
+                target.rotationStyle !==
+                RenderedTarget.ROTATION_STYLE_ALL_AROUND;
 
             if (prev && (prev.x !== target.x || prev.y !== target.y)) {
-                const pos = new b2Vec2((target.x + _scroll.x) / zoom, (target.y + _scroll.y) / zoom);
+                const pos = new b2Vec2(
+                    (target.x + _scroll.x) / zoom,
+                    (target.y + _scroll.y) / zoom
+                );
                 this._setPosition(body, pos);
                 if (!fixedRotation) {
                     body.SetAngle((90 - target.direction) * toRad);
                 }
                 body.SetAwake(true);
-            } else if (!fixedRotation && prev && prev.dir !== target.direction) {
+            } else if (
+                !fixedRotation &&
+                prev &&
+                prev.dir !== target.direction
+            ) {
                 body.SetAngle((90 - target.direction) * toRad);
                 body.SetAwake(true);
             }
         }
     }
 
-  
-    
-
-
     setPhysicsAll() {
-
         const allTargets = this.runtime.targets;
         if (allTargets === null) return;
         for (let i = 0; i < allTargets.length; i++) {
@@ -999,7 +1056,6 @@ world.SetContactListener(contactListener);
                 this.setPhysicsFor(target);
             }
         }
-
     }
 
     /**
@@ -1024,67 +1080,47 @@ world.SetContactListener(contactListener);
         const target = util.target;
         const body = this.setPhysicsFor(target, args.shape);
         if (body) {
-            body.SetBullet(args.mode === 'bullet');
+            body.SetBullet(args.mode === "bullet");
         }
     }
 
-     setHidden(target, isHidden) {
+    setHidden(target, isHidden) {
         // Retrieve the Box2D body associated with the target
         let body = bodies[target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
         }
 
-    
         // Determine the new category and mask bits based on the isHidden flag
-        let categoryBits = isHidden ? CATEGORY_HIDDEN : (target.isWall ? CATEGORY_WALLS : CATEGORY_NOT_WALLS);
-        let maskBits = isHidden ? 0 : (target.isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS); // If not hidden, revert to previous collision rules
-    
+        let categoryBits = isHidden
+            ? CATEGORY_HIDDEN
+            : target.isWall
+            ? CATEGORY_WALLS
+            : CATEGORY_NOT_WALLS;
+        let maskBits = isHidden
+            ? 0
+            : target.isWall
+            ? CATEGORY_WALLS | CATEGORY_NOT_WALLS
+            : CATEGORY_WALLS; // If not hidden, revert to previous collision rules
+
         // Loop through all fixtures of the body and update their filter data
-        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+        for (
+            let fixture = body.GetFixtureList();
+            fixture;
+            fixture = fixture.GetNext()
+        ) {
             let filter = fixture.GetFilterData();
             filter.categoryBits = categoryBits;
             filter.maskBits = maskBits;
             fixture.SetFilterData(filter);
         }
-    
+
         // Update any metadata or properties you use to track the hidden state of the target
         target.isHiddenPhysics = isHidden;
-    }
-    
 
-    setWall(target, isWall) {
-        if (target.isStage || target.isPhysicsWall === isWall) {
-            return;
-        }
-    
-        // Retrieve the Box2D body associated with the target
-        let body = bodies[target.id];
-        if (!body) {
-            body = this.setPhysicsFor(target);
-        }
-    
-        // Determine the new category and mask bits based on the isWall flag
-        let categoryBits = isWall ? CATEGORY_WALLS : CATEGORY_NOT_WALLS;
-        let maskBits = isWall ? CATEGORY_WALLS | CATEGORY_NOT_WALLS : CATEGORY_WALLS;
-    
-        // Loop through all fixtures of the body and update their filter data
-        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
-            let filter = fixture.GetFilterData();
-            filter.categoryBits = categoryBits;
-            filter.maskBits = maskBits;
-            fixture.SetFilterData(filter);
-        }
-    
-        // Optionally, update any metadata or properties you use to track the wall state of the target
-        const variable = target.lookupOrCreateVariable(`$is_wall?_${target.sprite.clones[0].id}`, 'is wall?');
-        variable.value = isWall;
-    
-        target.isPhysicsWall = isWall;
-    
         // Wake up the body so that it's active in the next step
         body.SetAwake(true);
-    
+
         // Clear contacts by flagging them for filtering
         let contactEdge = body.GetContactList();
         while (contactEdge) {
@@ -1094,26 +1130,110 @@ world.SetContactListener(contactListener);
             contactEdge = contactEdge.next;
         }
     }
-    
+    setAllowScreenwrap(target, allowScreenwrap) {
+        if (target.isStage) {
+            return; // Ignore if it's the stage itself
+        }
 
+        let body = bodies[target.id];
+        if (!body) {
+            body = this.setPhysicsFor(target); // Ensure the body exists
+        }
+
+        // Retrieve current filter data and update mask bits based on screenwrap setting
+        let maskBits = body.GetFixtureList().GetFilterData().maskBits;
+
+        if (allowScreenwrap) {
+            maskBits &= ~CATEGORY_STAGE_WALLS; // Remove stage walls from collision mask
+        } else {
+            maskBits |= CATEGORY_STAGE_WALLS; // Add stage walls to collision mask
+        }
+
+        // Update the collision filter of the body
+        updateCollisionFilter(
+            body,
+            body.GetFixtureList().GetFilterData().categoryBits,
+            maskBits
+        );
+
+        target.ignoresStageWalls = allowScreenwrap; // Track screenwrap setting
+
+        body.SetAwake(true); // Make sure the body is active so changes take effect immediately
+
+        // Flag all contacts for re-evaluation to update collision behavior
+        let contactEdge = body.GetContactList();
+        while (contactEdge) {
+            let contact = contactEdge.contact;
+            contact.FlagForFiltering();
+            contactEdge = contactEdge.next;
+        }
+    }
+
+    setWall(target, isWall) {
+        if (target.isStage || target.isPhysicsWall === isWall) {
+            return;
+        }
+
+        let body = bodies[target.id];
+        if (!body) {
+            body = this.setPhysicsFor(target);
+        }
+
+        let categoryBits, maskBits;
+        if (isWall) {
+            categoryBits = CATEGORY_WALLS;
+            maskBits = MASK_WALLS; // WALLS should collide with NOT_WALLS and other WALLS
+        } else {
+            categoryBits = CATEGORY_NOT_WALLS;
+            maskBits = MASK_NOT_WALLS; // NOT_WALLS should be stopped by WALLS
+        }
+
+        if (target.ignoresStageWalls) {
+            maskBits &= ~CATEGORY_STAGE_WALLS;
+        }
+
+        // Use the helper function to update collision filters
+        updateCollisionFilter(body, categoryBits, maskBits);
+
+        target.isPhysicsWall = isWall;
+
+        const variable = target.lookupOrCreateVariable(
+            `$is_wall?_${target.sprite.clones[0].id}`,
+            "is wall?"
+        );
+        variable.value = isWall;
+
+        body.SetAwake(true);
+
+        let contactEdge = body.GetContactList();
+        while (contactEdge) {
+            let contact = contactEdge.contact;
+            contact.FlagForFiltering();
+            contactEdge = contactEdge.next;
+        }
+    }
 
     setPhysicsFor(target) {
-
         const r = this.runtime.renderer;
         const drawable = r._allDrawables[target.drawableID];
 
         // Check for a 'hitbox' costume
 
-        const hitboxCostumeIndex = target.getCostumeIndexByName('hitbox'); // Method to get a costume by name
+        const hitboxCostumeIndex = target.getCostumeIndexByName("hitbox"); // Method to get a costume by name
         let hitboxCostume = null;
         if (hitboxCostumeIndex !== -1) {
             hitboxCostume = target.getCostumes()[hitboxCostumeIndex];
         }
         const currentCostume = target.getCurrentCostume(); // Method to get the current costume
-        const currentCostumeIndex = target.getCostumeIndexByName(currentCostume.name); // Method to get a costume by name
-        let costumeToUse = hitboxCostume || currentCostume // Use 'hitbox' costume if available, otherwise current costume
+        const currentCostumeIndex = target.getCostumeIndexByName(
+            currentCostume.name
+        ); // Method to get a costume by name
+        let costumeToUse = hitboxCostume || currentCostume; // Use 'hitbox' costume if available, otherwise current costume
         target.physicsCostumeName = costumeToUse.name;
-        const costumeToUseIndex = target.getCostumeIndexByName(costumeToUse.name); // Method to get a costume by name
+        target.physicsCostumeSize = target.size;
+        const costumeToUseIndex = target.getCostumeIndexByName(
+            costumeToUse.name
+        ); // Method to get a costume by name
         // Set the costume to the one we've determined to use
         target.setCostume(costumeToUseIndex);
 
@@ -1131,13 +1251,22 @@ world.SetContactListener(contactListener);
 
         const hullPoints = [];
         for (const i in points) {
-            hullPoints.push({ x: (points[i][0] - offset[0]) * scaleX, y: (points[i][1] - offset[1]) * scaleY });
+            hullPoints.push({
+                x: (points[i][0] - offset[0]) * scaleX,
+                y: (points[i][1] - offset[1]) * scaleY,
+            });
         }
 
         _definePolyFromHull(hullPoints);
 
-        const fixedRotation = target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
-        const body = _placeBody(target.id, target.x, target.y, fixedRotation ? 90 : target.direction);
+        const fixedRotation =
+            target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
+        const body = _placeBody(
+            target.id,
+            target.x,
+            target.y,
+            fixedRotation ? 90 : target.direction
+        );
         if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
             body.SetFixedRotation(true);
         }
@@ -1153,11 +1282,10 @@ world.SetContactListener(contactListener);
         if (hitboxCostume) {
             target.setCostume(currentCostumeIndex);
         }
-        target.isPhysicsWall = 'not yet set'
+        target.isPhysicsWall = "not yet set";
         this.setWall(target, false);
         return body;
     }
-
 
     /**
      *
@@ -1166,41 +1294,52 @@ world.SetContactListener(contactListener);
      * @private
      */
     _fetchPolygonPointsFromSVG(svg, hullPointsList, ox, oy, scaleX, scaleY) {
-        if (svg.tagName === 'g' || svg.tagName === 'svg') {
+        if (svg.tagName === "g" || svg.tagName === "svg") {
             if (svg.hasChildNodes()) {
                 for (const node of svg.childNodes) {
-                    this._fetchPolygonPointsFromSVG(node, hullPointsList, ox, oy, scaleX, scaleY);
+                    this._fetchPolygonPointsFromSVG(
+                        node,
+                        hullPointsList,
+                        ox,
+                        oy,
+                        scaleX,
+                        scaleY
+                    );
                 }
             }
             return;
         }
 
-        if (svg.tagName !== 'path') {
+        if (svg.tagName !== "path") {
             return;
         }
         // This is it boys! Get that svg data :)
         // <path xmlns="http://www.w3.org/2000/svg" d="M 1 109.7118 L 1 1.8097 L 60.3049 38.0516 L 117.9625 1.8097 L 117.9625 109.7118 L 59.8931 73.8817 Z "
         //  data-paper-data="{&quot;origPos&quot;:null}" stroke-width="2" fill="#9966ff"/>
 
-        let fx; let fy;
+        let fx;
+        let fy;
 
         const hullPoints = [];
         hullPointsList.push(hullPoints);
 
-        const tokens = svg.getAttribute('d').split(' ');
-        for (let i = 0; i < tokens.length;) {
+        const tokens = svg.getAttribute("d").split(" ");
+        for (let i = 0; i < tokens.length; ) {
             const token = tokens[i++];
-            if (token === 'M' || token === 'L') {
+            if (token === "M" || token === "L") {
                 const x = Cast.toNumber(tokens[i++]);
                 const y = Cast.toNumber(tokens[i++]);
                 hullPoints.push({ x: (x - ox) * scaleX, y: (y - oy) * scaleY });
-                if (token === 'M') {
+                if (token === "M") {
                     fx = x;
                     fy = y;
                 }
             }
-            if (token === 'Z') {
-                hullPoints.push({ x: (fx - ox) * scaleX, y: (fy - oy) * scaleY });
+            if (token === "Z") {
+                hullPoints.push({
+                    x: (fx - ox) * scaleX,
+                    y: (fy - oy) * scaleY,
+                });
             }
         }
     }
@@ -1212,15 +1351,24 @@ world.SetContactListener(contactListener);
             body = this.setPhysicsFor(util.target);
         }
         const fixtures = body.GetFixtureList();
-        for (let fixture = body.GetFixtureList(); fixture; fixture = fixture.GetNext()) {
+        for (
+            let fixture = body.GetFixtureList();
+            fixture;
+            fixture = fixture.GetNext()
+        ) {
             fixture.SetRestitution(bounciness);
         }
     }
-    
 
     applyForce(args, util) {
-        _applyForce(util.target.id, 'Impulse', 0, 0,
-            Cast.toNumber(args.dir), Cast.toNumber(args.force));
+        _applyForce(
+            util.target.id,
+            "Impulse",
+            0,
+            0,
+            Cast.toNumber(args.dir),
+            Cast.toNumber(args.force)
+        );
     }
 
     applyAngForce(args, util) {
@@ -1250,7 +1398,9 @@ world.SetContactListener(contactListener);
 
         body.GetFixtureList().SetDensity(Cast.toNumber(args.density) / 100.0);
         body.GetFixtureList().SetFriction(Cast.toNumber(args.friction) / 100.0);
-        body.GetFixtureList().SetRestitution(Cast.toNumber(args.restitution) / 100.0);
+        body.GetFixtureList().SetRestitution(
+            Cast.toNumber(args.restitution) / 100.0
+        );
         body.ResetMassData();
     }
 
@@ -1262,7 +1412,16 @@ world.SetContactListener(contactListener);
         const x = Cast.toNumber(args.x);
         const y = Cast.toNumber(args.y);
 
-        _createJointOfType(null, 'Rotating', util.target.id, x, y, null, null, null);
+        _createJointOfType(
+            null,
+            "Rotating",
+            util.target.id,
+            x,
+            y,
+            null,
+            null,
+            null
+        );
     }
 
     /**
@@ -1282,14 +1441,20 @@ world.SetContactListener(contactListener);
             case SPACE_TYPE_OPTIONS.STAGE:
                 _setXY(util.target, x, y); // Position on stage (after scroll)
                 if (body) {
-                    this._setPosition(body, new b2Vec2((x + _scroll.x) / zoom, (y + _scroll.y) / zoom));
+                    this._setPosition(
+                        body,
+                        new b2Vec2(
+                            (x + _scroll.x) / zoom,
+                            (y + _scroll.y) / zoom
+                        )
+                    );
                 }
                 break;
             case SPACE_TYPE_OPTIONS.RELATIVE: {
                 _setXY(util.target, util.target.x + x, util.target.x + y);
                 if (body) {
                     const pos = body.GetPosition();
-                    const pos2 = new b2Vec2(pos.x + (x / zoom), pos.y + (y / zoom));
+                    const pos2 = new b2Vec2(pos.x + x / zoom, pos.y + y / zoom);
                     this._setPosition(body, pos2);
                 }
                 break;
@@ -1306,7 +1471,16 @@ world.SetContactListener(contactListener);
         const md = pinned[body.uid];
         if (md) {
             world.DestroyJoint(md);
-            pinned[body.uid] = _createJointOfType(null, 'Rotating', body.uid, 0, 0, null, pos2.x * zoom, pos2.y * zoom);
+            pinned[body.uid] = _createJointOfType(
+                null,
+                "Rotating",
+                body.uid,
+                0,
+                0,
+                null,
+                pos2.x * zoom,
+                pos2.y * zoom
+            );
         }
         body.SetPosition(pos2);
         // if (md) {
@@ -1416,20 +1590,30 @@ world.SetContactListener(contactListener);
         if (!body) {
             body = this.setPhysicsFor(target);
         }
-        body.SetType(args.static === 'static' ? b2Body.b2_staticBody : b2Body.b2_dynamicBody);
+        body.SetType(
+            args.static === "static"
+                ? b2Body.b2_staticBody
+                : b2Body.b2_dynamicBody
+        );
 
-        const pos = new b2Vec2((target.x + _scroll.x) / zoom, (target.y + _scroll.y) / zoom);
-        const fixedRotation = target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
-        body.SetPositionAndAngle(pos, fixedRotation ? 0 : ((90 - target.direction) * toRad));
+        const pos = new b2Vec2(
+            (target.x + _scroll.x) / zoom,
+            (target.y + _scroll.y) / zoom
+        );
+        const fixedRotation =
+            target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
+        body.SetPositionAndAngle(
+            pos,
+            fixedRotation ? 0 : (90 - target.direction) * toRad
+        );
 
-        if (args.static === 'pinned') {
-
+        if (args.static === "pinned") {
             // Find what's behind the sprite (pin to that)
             const point = new b2AABB();
             point.lowerBound.SetV(pos);
             point.upperBound.SetV(pos);
             let body2ID = null;
-            world.QueryAABB(fixture => {
+            world.QueryAABB((fixture) => {
                 const body2 = fixture.GetBody();
                 if (body2 !== body && fixture.TestPoint(pos.x, pos.y)) {
                     body2ID = body2.uid;
@@ -1438,7 +1622,16 @@ world.SetContactListener(contactListener);
                 return true;
             }, point);
 
-            pinned[target.id] = _createJointOfType(null, 'Rotating', target.id, 0, 0, body2ID, null, null);
+            pinned[target.id] = _createJointOfType(
+                null,
+                "Rotating",
+                target.id,
+                0,
+                0,
+                body2ID,
+                null,
+                null
+            );
         } else {
             const pin = pinned[target.id];
             if (pin) {
@@ -1497,8 +1690,16 @@ world.SetContactListener(contactListener);
             const target = this.runtime.getTargetById(targetID);
             if (target) {
                 const position = body.GetPosition();
-                _setXY(target, (position.x * zoom) - _scroll.x, (position.y * zoom) - _scroll.y);
-                prevPos[targetID] = { x: target.x, y: target.y, dir: target.direction };
+                _setXY(
+                    target,
+                    position.x * zoom - _scroll.x,
+                    position.y * zoom - _scroll.y
+                );
+                prevPos[targetID] = {
+                    x: target.x,
+                    y: target.y,
+                    dir: target.direction,
+                };
             }
         }
     }
@@ -1507,19 +1708,21 @@ world.SetContactListener(contactListener);
         const target = util.target;
         const body = bodies[target.id];
         if (!body) {
-            return '';
+            return "";
         }
         const where = args.where;
-        let touching = '';
+        let touching = "";
         const contacts = body.GetContactList();
         for (let ce = contacts; ce; ce = ce.next) {
             // noinspection JSBitwiseOperatorUsage
             if (ce.contact.m_flags & b2Contact.e_islandFlag) {
                 continue;
             }
-            if (ce.contact.IsSensor() === true ||
+            if (
+                ce.contact.IsSensor() === true ||
                 ce.contact.IsEnabled() === false ||
-                ce.contact.IsTouching() === false) {
+                ce.contact.IsTouching() === false
+            ) {
                 continue;
             }
             const contact = ce.contact;
@@ -1531,21 +1734,25 @@ world.SetContactListener(contactListener);
             // const myFix = touchingB ? fixtureA : fixtureB;
 
             const touchingB = bodyA === body;
-            if (where !== 'any') {
+            if (where !== "any") {
                 const man = new Box2D.Collision.b2WorldManifold();
                 contact.GetWorldManifold(man);
                 // man.m_points
                 // const mx = man.m_normal.x;
                 // const my = man.m_normal.y;
 
-                if (where === 'feet') {
+                if (where === "feet") {
                     // if (my > -0.6) {
                     //     continue;
                     // }
 
                     const fixture = body.GetFixtureList();
                     const y = man.m_points[0].y;
-                    if (y > (fixture.m_aabb.lowerBound.y * 0.75) + (fixture.m_aabb.upperBound.y * 0.25)) {
+                    if (
+                        y >
+                        fixture.m_aabb.lowerBound.y * 0.75 +
+                            fixture.m_aabb.upperBound.y * 0.25
+                    ) {
                         continue;
                     }
 
@@ -1556,7 +1763,9 @@ world.SetContactListener(contactListener);
 
             const other = touchingB ? bodyB : bodyA;
             const uid = other.uid;
-            const target2 = uid ? this.runtime.getTargetById(uid) : this.runtime.getTargetForStage();
+            const target2 = uid
+                ? this.runtime.getTargetById(uid)
+                : this.runtime.getTargetForStage();
             if (target2) {
                 const name = target2.sprite.name;
                 if (touching.length === 0) {
@@ -1585,7 +1794,9 @@ world.SetContactListener(contactListener);
      * @property {number} gy - Gravity y.
      */
     setGravity(args) {
-        world.SetGravity(new b2Vec2(Cast.toNumber(args.gx), Cast.toNumber(args.gy)));
+        world.SetGravity(
+            new b2Vec2(Cast.toNumber(args.gx), Cast.toNumber(args.gy))
+        );
         for (const bodyID in bodies) {
             bodies[bodyID].SetAwake(true);
         }
@@ -1600,7 +1811,7 @@ world.SetContactListener(contactListener);
         const _pinned = snapshot.pinned;
         const _stageBodies = snapshot.stageBodies;
         const _scroll = snapshot.scroll;
-        this.runtime.targets.forEach(target => {
+        this.runtime.targets.forEach((target) => {
             const body = _bodies[target.id];
             if (body) {
                 this.setPhysicsFor(target);
@@ -1612,17 +1823,31 @@ world.SetContactListener(contactListener);
                 b.SetFixedRotation(body.fixedRotation);
                 b.SetType(body.type);
             }
-        })
+        });
 
-        Object.keys(_pinned).forEach(key => {
+        Object.keys(_pinned).forEach((key) => {
             const joint = _pinned[key];
-            _createJointOfType(null, joint.type, joint.bodyA, joint.anchorA.x, joint.anchorA.y, joint.bodyB, joint.anchorB.x, joint.anchorB.y);
-        })
+            _createJointOfType(
+                null,
+                joint.type,
+                joint.bodyA,
+                joint.anchorA.x,
+                joint.anchorA.y,
+                joint.bodyB,
+                joint.anchorB.x,
+                joint.anchorB.y
+            );
+        });
 
-        _stageBodies.forEach(body => {
-            const b = _placeBody(null, body.position.x, body.position.y, body.angle);
+        _stageBodies.forEach((body) => {
+            const b = _placeBody(
+                null,
+                body.position.x,
+                body.position.y,
+                body.angle
+            );
             stageBodies.push(b);
-        })
+        });
     }
 
     saveSnapshot() {
@@ -1633,7 +1858,7 @@ world.SetContactListener(contactListener);
             bodies: _bodies,
             pinned: _pinned,
             stageBodies: _stageBodies,
-            scroll: _scroll
+            scroll: _scroll,
         };
     }
 }
@@ -1648,7 +1873,7 @@ function serializeBodies(bodies) {
             linearVelocity: body.GetLinearVelocity(),
             angularVelocity: body.GetAngularVelocity(),
             fixedRotation: body.IsFixedRotation(),
-            type: body.GetType()
+            type: body.GetType(),
         };
     }
     return _bodies;
@@ -1663,7 +1888,7 @@ function serializeJoints(joints) {
             bodyA: joint.GetBodyA().uid,
             bodyB: joint.GetBodyB().uid,
             anchorA: joint.GetAnchorA(),
-            anchorB: joint.GetAnchorB()
+            anchorB: joint.GetAnchorB(),
         };
     }
     return _joints;
@@ -1675,7 +1900,7 @@ function serializeStageBodies(stageBodies) {
         const body = stageBodies[key];
         _stageBodies.push({
             position: body.GetPosition(),
-            angle: body.GetAngle()
+            angle: body.GetAngle(),
         });
     }
     return _stageBodies;
@@ -1689,7 +1914,10 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
         const bodyB = fixtureB.GetBody();
 
         // Check if either fixture has zero restitution
-        if (fixtureA.GetRestitution() === 0 || fixtureB.GetRestitution() === 0) {
+        if (
+            fixtureA.GetRestitution() === 0 ||
+            fixtureB.GetRestitution() === 0
+        ) {
             // Zero out both linear and angular velocities if the impulse suggests a significant impact
             if (Math.abs(impulse.normalImpulses[0]) > 0.01) {
                 bodyA.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0));
@@ -1701,6 +1929,17 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
     }
 }
 
-
+function updateCollisionFilter(body, categoryBits, maskBits) {
+    for (
+        let fixture = body.GetFixtureList();
+        fixture;
+        fixture = fixture.GetNext()
+    ) {
+        let filter = fixture.GetFilterData();
+        filter.categoryBits = categoryBits;
+        filter.maskBits = maskBits;
+        fixture.SetFilterData(filter);
+    }
+}
 
 module.exports = Scratch3Physics;
