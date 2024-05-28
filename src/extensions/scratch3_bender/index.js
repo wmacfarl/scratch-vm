@@ -253,10 +253,17 @@ class Scratch3BenderBlocks {
 
     deleteSelf (args, util) {
         const {target} = util;
-            this.runtime.disposeTarget(target);
-            this.runtime.stopForTarget(target);
-    }
+        if (target.isStage) {
+            return;
+        }
+        this.runtime.stopForTarget(target);
 
+        if (target.isOriginal) {
+            target.isDestroyed = true;      
+            target.setVisible(false);
+        }
+        this.runtime.disposeTarget(target);
+    }
     getPixelColor (args) {
         const {X, Y} = args;
         // the drawList is front to back so need to reverse it for sampleColor3b

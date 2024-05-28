@@ -2,7 +2,7 @@
 const CATEGORY_WALLS = 0x0001;
 const CATEGORY_NOT_WALLS = 0x0002;
 const CATEGORY_STAGE_WALLS = 0x0004;
-const CATEGORY_HIDDEN = 0x0008; 
+const CATEGORY_HIDDEN = 0x0008;
 
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS | CATEGORY_STAGE_WALLS; // WALLS collide with everything
@@ -381,7 +381,6 @@ const menuIconURI =
  */
 class Scratch3Physics {
     constructor(runtime) {
-        console.log("Physics Extension Loaded");
         /**
          * The runtime instantiating this block package.
          * @type {Runtime}
@@ -422,7 +421,6 @@ class Scratch3Physics {
     }
 
     reset() {
-        console.log("Physics Extension Reset, bodies", bodies);
         for (const body in bodies) {
             if (pinned[body.uid]) {
                 world.DestroyJoint(pinned[body.uid]);
@@ -1094,12 +1092,12 @@ class Scratch3Physics {
         // Determine the new category and mask bits based on the isHidden flag
         let categoryBits = isHidden
             ? CATEGORY_HIDDEN
-            : target.isWall
+            : target.isPhysicsWall
             ? CATEGORY_WALLS
             : CATEGORY_NOT_WALLS;
         let maskBits = isHidden
             ? 0
-            : target.isWall
+            : target.isPhysicsWall
             ? CATEGORY_WALLS | CATEGORY_NOT_WALLS
             : CATEGORY_WALLS; // If not hidden, revert to previous collision rules
 
@@ -1130,6 +1128,8 @@ class Scratch3Physics {
             contactEdge = contactEdge.next;
         }
     }
+
+
     setAllowScreenwrap(target, allowScreenwrap) {
         if (target.isStage) {
             return; // Ignore if it's the stage itself
