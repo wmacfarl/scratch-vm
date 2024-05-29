@@ -3,7 +3,7 @@ const CATEGORY_WALLS = 0x0001;
 const CATEGORY_NOT_WALLS = 0x0002;
 const CATEGORY_STAGE_WALLS = 0x0004;
 const CATEGORY_HIDDEN = 0x0008;
-
+const LINEAR_DAMPING = 2.5;
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS | CATEGORY_STAGE_WALLS; // WALLS collide with everything
 const MASK_NOT_WALLS = CATEGORY_WALLS | CATEGORY_STAGE_WALLS; // NOT_WALLS should be affected by WALLS and STAGE_WALLS
@@ -953,6 +953,7 @@ class Scratch3Physics {
 
         for (const targetID in bodies) {
             let body = bodies[targetID];
+
             const target = this.runtime.getTargetById(targetID);
             if (!target) {
                 // Drop target from simulation
@@ -1209,7 +1210,7 @@ class Scratch3Physics {
         }
         if (isWall === body.isWall) {
             return;
-        }
+        }("setWall", target, isWall);
         body.isWall = isWall;
 
         let categoryBits, maskBits;
@@ -1317,6 +1318,7 @@ class Scratch3Physics {
         //set to dynamic
 
         body.SetType(b2Body.b2_dynamicBody);
+        body.SetLinearDamping(LINEAR_DAMPING);
         body.isStatic = false;
         if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
             body.SetFixedRotation(true);
@@ -1340,6 +1342,7 @@ class Scratch3Physics {
             body.SetType(b2Body.b2_staticBody);
             body.isStatic = true;
         }
+
         body.kickStrength = kickStrength;
         if (startHidden) {
             target.setVisible(false);
@@ -2011,25 +2014,6 @@ function serializeStageBodies(stageBodies) {
 }
 
 class MyContactListener extends Box2D.Dynamics.b2ContactListener {
-    BeginContact(contact) {
-        let bodyA = contact.GetFixtureA().GetBody();
-        let bodyB = contact.GetFixtureB().GetBody();
-        // Check if one of the bodies is kinematic and the other is a stage body
-        if (
-            (bodyA.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody &&
-                bodyB.GetType() == Box2D.Dynamics.b2Body.b2_staticBody) ||
-            (bodyB.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody &&
-                bodyA.GetType() == Box2D.Dynamics.b2Body.b2_staticBody)
-        ) {
-            // Handle collision: e.g., stop the kinematic body
-            const kinematicBody =
-                bodyA.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody
-                    ? bodyA
-                    : bodyB;
-            kinematicBody.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0)); // Stop the body
-        }
-    }
-
     PostSolve(contact, impulse) {
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
@@ -2049,7 +2033,6 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
                 normal.x,
                 normal.y
             );
-            console.log("kickDirection A", kickDirection);
             this.applyKick(bodyB, bodyA.kickStrength, kickDirection);
         }
         if (bodyB.kickStrength) {
@@ -2058,7 +2041,6 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
                 -normal.x,
                 -normal.y
             );
-            console.log("kickDirection B", kickDirection);
             this.applyKick(bodyA, bodyB.kickStrength, kickDirection);
         }
     }
