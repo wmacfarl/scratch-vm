@@ -271,7 +271,7 @@ const _setXY = function (rt, x, y, force) {
     const oldX = rt.x;
     const oldY = rt.y;
     if (rt.renderer) {
-        // const position = rt.renderer.getFencedPositionOfDrawable(rt.drawableID, [x, y]);
+        //   const position = rt.renderer.getFencedPositionOfDrawable(rt.drawableID, [x, y]);
         rt.x = x; // position[0];
         rt.y = y; // position[1];
 
@@ -286,6 +286,7 @@ const _setXY = function (rt, x, y, force) {
         rt.x = x;
         rt.y = y;
     }
+
     rt.emit(RenderedTarget.EVENT_TARGET_MOVED, rt, oldX, oldY, force);
     rt.runtime.requestTargetsUpdate(rt);
 };
@@ -326,30 +327,25 @@ const _setStageType = function (type) {
     fixDef.shape = new b2PolygonShape();
     bodyDef.angle = 0;
 
-    if (type === STAGE_TYPE_OPTIONS.BOXED) {
-        fixDef.shape.SetAsBox(250 / zoom, 10 / zoom);
-        bodyDef.position.Set(0, -190 / zoom);
-        createStageBody();
-        bodyDef.position.Set(0, 190 / zoom);
-        createStageBody();
-        fixDef.shape.SetAsBox(10 / zoom, 800 / zoom);
-        bodyDef.position.Set(-250 / zoom, 540 / zoom);
-        createStageBody();
-        bodyDef.position.Set(250 / zoom, 540 / zoom);
-        createStageBody();
-    } else if (type === STAGE_TYPE_OPTIONS.FLOOR) {
-        fixDef.shape.SetAsBox(5000 / zoom, 100 / zoom);
-        bodyDef.position.Set(0, -280 / zoom);
-        createStageBody();
-        bodyDef.position.Set(-10000, -280 / zoom);
-        createStageBody();
-        bodyDef.position.Set(10000, -280 / zoom);
-        createStageBody();
-        bodyDef.position.Set(-20000, -280 / zoom);
-        createStageBody();
-        bodyDef.position.Set(20000, -280 / zoom);
-        createStageBody();
-    }
+    let left = (-240 + _scroll.x) / zoom;
+    let right = (240 + _scroll.x) / zoom;
+    let top = (180 + _scroll.y) / zoom;
+    let bottom = (-180 + _scroll.y) / zoom;
+    let boxWidth = 1000 / zoom;
+    let boxHeight = 1000 / zoom;
+    let screenWidth = 480 / zoom;
+    let screenHeight = 360 / zoom;
+
+    fixDef.shape.SetAsBox(boxWidth, screenHeight);
+    bodyDef.position.Set(left - boxWidth, 0);
+    createStageBody();
+    bodyDef.position.Set(right + boxWidth, 0);
+    createStageBody();
+    fixDef.shape.SetAsBox(screenWidth, boxHeight);
+    bodyDef.position.Set(0, top + boxHeight);
+    createStageBody();
+    bodyDef.position.Set(0, bottom - boxHeight);
+    createStageBody();
 
     bodyDef.type = b2Body.b2_dynamicBody;
 
@@ -401,6 +397,8 @@ class Scratch3Physics {
         this.runtime.savePhysics = this.saveSnapshot.bind(this);
         this.runtime.loadPhysics = this.loadSnapshot.bind(this);
         this.runtime.setScreenwrap = this.setAllowScreenwrap.bind(this);
+        this.runtime.setKicker = this.setKicker.bind(this);
+        this.runtime.setStatic = this._setStatic.bind(this);
 
         this.runtime.physicsData = {
             world: world,
@@ -1004,6 +1002,35 @@ class Scratch3Physics {
                 y: target.y,
                 dir: target.direction,
             };
+
+            if (!body.allowScreenwrap) {
+                const bounds = target.getBounds();
+                if (bounds.right >= 240) {
+                    const delta = bounds.right - 240;
+                    target.x -= delta;
+                    // reverse the x velocity
+                    const vel = body.GetLinearVelocity();
+                    body.SetLinearVelocity(new b2Vec2(-vel.x, vel.y));
+                } else if (bounds.left <= -240) {
+                    const delta = bounds.left + 240;
+                    target.x -= delta;
+                    const vel = body.GetLinearVelocity();
+                    body.SetLinearVelocity(new b2Vec2(-vel.x, vel.y));
+                }
+
+                if (bounds.bottom <= -180) {
+                    const delta = bounds.bottom + 180;
+                    target.y -= delta;
+                    const vel = body.GetLinearVelocity();
+                    body.SetLinearVelocity(new b2Vec2(vel.x, -vel.y));
+                }
+                if (bounds.top >= 180) {
+                    const delta = bounds.top - 180;
+                    target.y -= delta;
+                    const vel = body.GetLinearVelocity();
+                    body.SetLinearVelocity(new b2Vec2(vel.x, -vel.y));
+                }
+            }
         }
     }
 
@@ -1129,7 +1156,6 @@ class Scratch3Physics {
         }
     }
 
-
     setAllowScreenwrap(target, allowScreenwrap) {
         if (target.isStage) {
             return; // Ignore if it's the stage itself
@@ -1139,7 +1165,10 @@ class Scratch3Physics {
         if (!body) {
             body = this.setPhysicsFor(target); // Ensure the body exists
         }
-
+        if (allowScreenwrap === body.allowScreenwrap) {
+            return; // Ignore if the setting hasn't changed
+        }
+        body.allowScreenwrap = allowScreenwrap; // Track screenwrap setting
         // Retrieve current filter data and update mask bits based on screenwrap setting
         let maskBits = body.GetFixtureList().GetFilterData().maskBits;
 
@@ -1157,7 +1186,7 @@ class Scratch3Physics {
         );
 
         target.ignoresStageWalls = allowScreenwrap; // Track screenwrap setting
-
+        body.allowScreenwrap = allowScreenwrap; // Track screenwrap setting
         body.SetAwake(true); // Make sure the body is active so changes take effect immediately
 
         // Flag all contacts for re-evaluation to update collision behavior
@@ -1178,6 +1207,10 @@ class Scratch3Physics {
         if (!body) {
             body = this.setPhysicsFor(target);
         }
+        if (isWall === body.isWall) {
+            return;
+        }
+        body.isWall = isWall;
 
         let categoryBits, maskBits;
         if (isWall) {
@@ -1213,8 +1246,22 @@ class Scratch3Physics {
         }
     }
 
-    setPhysicsFor(target) {
+    setPhysicsFor(target, props) {
+        if (!props) {
+            props = {};
+        }
+        const {
+            isWall = false,
+            kickStrength = 0,
+            isStatic = false,
+            allowScreenwrap = false,
+        } = props;
         const r = this.runtime.renderer;
+        let startHidden = false;
+        if (target.visible === false) {
+            target.setVisible(true);
+            startHidden = true;
+        }
         const drawable = r._allDrawables[target.drawableID];
 
         // Check for a 'hitbox' costume
@@ -1267,6 +1314,10 @@ class Scratch3Physics {
             target.y,
             fixedRotation ? 90 : target.direction
         );
+        //set to dynamic
+
+        body.SetType(b2Body.b2_dynamicBody);
+        body.isStatic = false;
         if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
             body.SetFixedRotation(true);
         }
@@ -1283,7 +1334,27 @@ class Scratch3Physics {
             target.setCostume(currentCostumeIndex);
         }
         target.isPhysicsWall = "not yet set";
-        this.setWall(target, false);
+        this.setWall(target, isWall);
+        this.setAllowScreenwrap(target, allowScreenwrap);
+        if (isStatic) {
+            body.SetType(b2Body.b2_staticBody);
+            body.isStatic = true;
+        }
+        body.kickStrength = kickStrength;
+        if (startHidden) {
+            target.setVisible(false);
+
+            this.setHidden(target, true);
+        }
+        //set friction to 0 for all fixtures
+        for (
+            let fixture = body.GetFixtureList();
+            fixture;
+            fixture = fixture.GetNext()
+        ) {
+            fixture.SetFriction(0);
+        }
+
         return body;
     }
 
@@ -1496,6 +1567,8 @@ class Scratch3Physics {
      * @property {number} sy - speed y.
      */
     setVelocity(args, util) {
+        this.runtime.requestRedraw();
+        this.runtime.requestTargetsUpdate(util.target);
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1518,6 +1591,8 @@ class Scratch3Physics {
      * @property {number} sy - speed y.
      */
     changeVelocity(args, util) {
+        this.runtime.requestRedraw();
+        this.runtime.requestTargetsUpdate(util.target);
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(util.target);
@@ -1586,15 +1661,23 @@ class Scratch3Physics {
      */
     setStatic(args, util) {
         const target = util.target;
+        const isStatic = args.static === "static";
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
         }
+        if (isStatic === body.isStatic) {
+            return;
+        }
         body.SetType(
-            args.static === "static"
-                ? b2Body.b2_staticBody
-                : b2Body.b2_dynamicBody
+            isStatic ? b2Body.b2_kinematicBody : b2Body.b2_dynamicBody
         );
+        body.isStatic = isStatic;
+        //set the velocity to 0
+        if (isStatic) {
+            body.SetLinearVelocity(new b2Vec2(0, 0));
+            body.SetAngularVelocity(0);
+        }
 
         const pos = new b2Vec2(
             (target.x + _scroll.x) / zoom,
@@ -1810,11 +1893,16 @@ class Scratch3Physics {
         const _bodies = snapshot.bodies;
         const _pinned = snapshot.pinned;
         const _stageBodies = snapshot.stageBodies;
-        const _scroll = snapshot.scroll;
+
         this.runtime.targets.forEach((target) => {
             const body = _bodies[target.id];
             if (body) {
-                this.setPhysicsFor(target);
+                this.setPhysicsFor(target, {
+                    isStatic: body.isStatic,
+                    isWall: body.isWall,
+                    allowScreenwrap: body.allowScreenwrap,
+                    kickStrength: body.kickStrength,
+                });
                 const b = bodies[target.id];
                 b.SetPosition(body.position);
                 b.SetAngle(body.angle);
@@ -1861,6 +1949,18 @@ class Scratch3Physics {
             scroll: _scroll,
         };
     }
+
+    setKicker(target, strength) {
+        const body = bodies[target.id];
+        if (body) {
+            body.kickStrength = strength;
+        }
+    }
+
+    _setStatic(target, isStatic) {
+        const staticString = isStatic ? "static" : "dynamic";
+        this.setStatic({ static: staticString }, { target });
+    }
 }
 
 function serializeBodies(bodies) {
@@ -1874,6 +1974,10 @@ function serializeBodies(bodies) {
             angularVelocity: body.GetAngularVelocity(),
             fixedRotation: body.IsFixedRotation(),
             type: body.GetType(),
+            isStatic: body.isStatic,
+            isWall: body.isWall,
+            allowScreenwrap: body.allowScreenwrap,
+            kickStrength: body.kickStrength,
         };
     }
     return _bodies;
@@ -1907,25 +2011,77 @@ function serializeStageBodies(stageBodies) {
 }
 
 class MyContactListener extends Box2D.Dynamics.b2ContactListener {
+    BeginContact(contact) {
+        let bodyA = contact.GetFixtureA().GetBody();
+        let bodyB = contact.GetFixtureB().GetBody();
+        // Check if one of the bodies is kinematic and the other is a stage body
+        if (
+            (bodyA.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody &&
+                bodyB.GetType() == Box2D.Dynamics.b2Body.b2_staticBody) ||
+            (bodyB.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody &&
+                bodyA.GetType() == Box2D.Dynamics.b2Body.b2_staticBody)
+        ) {
+            // Handle collision: e.g., stop the kinematic body
+            const kinematicBody =
+                bodyA.GetType() == Box2D.Dynamics.b2Body.b2_kinematicBody
+                    ? bodyA
+                    : bodyB;
+            kinematicBody.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0)); // Stop the body
+        }
+    }
+
     PostSolve(contact, impulse) {
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
         const bodyA = fixtureA.GetBody();
         const bodyB = fixtureB.GetBody();
+        const worldManifold = new Box2D.Collision.b2WorldManifold();
 
-        // Check if either fixture has zero restitution
-        if (
-            fixtureA.GetRestitution() === 0 ||
-            fixtureB.GetRestitution() === 0
-        ) {
-            // Zero out both linear and angular velocities if the impulse suggests a significant impact
-            if (Math.abs(impulse.normalImpulses[0]) > 0.01) {
-                bodyA.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0));
-                bodyA.SetAngularVelocity(0);
-                bodyB.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(0, 0));
-                bodyB.SetAngularVelocity(0);
-            }
+        // This populates worldManifold with the correct contact points and normal
+        contact.GetWorldManifold(worldManifold);
+
+        // Get the normal vector from the contact
+        const normal = worldManifold.m_normal; // This is a b2Vec2
+
+        // Determine if one of the bodies is a kicker
+        if (bodyA.kickStrength) {
+            const kickDirection = new Box2D.Common.Math.b2Vec2(
+                normal.x,
+                normal.y
+            );
+            console.log("kickDirection A", kickDirection);
+            this.applyKick(bodyB, bodyA.kickStrength, kickDirection);
         }
+        if (bodyB.kickStrength) {
+            // For bodyB, the kick direction should be opposite
+            const kickDirection = new Box2D.Common.Math.b2Vec2(
+                -normal.x,
+                -normal.y
+            );
+            console.log("kickDirection B", kickDirection);
+            this.applyKick(bodyA, bodyB.kickStrength, kickDirection);
+        }
+    }
+
+    applyKick(body, kickStrength, kickDirection) {
+        // Ensure the direction is a unit vector
+        kickDirection.Normalize();
+
+        // Scale the direction by the strength of the kick
+        const kickVelocity = new Box2D.Common.Math.b2Vec2(
+            kickDirection.x * kickStrength,
+            kickDirection.y * kickStrength
+        );
+
+        // Add this velocity to the current body's velocity
+        const currentVelocity = body.GetLinearVelocity();
+        const newVelocity = new Box2D.Common.Math.b2Vec2(
+            currentVelocity.x + kickVelocity.x,
+            currentVelocity.y + kickVelocity.y
+        );
+
+        // Apply the new velocity to the body
+        body.SetLinearVelocity(newVelocity);
     }
 }
 
