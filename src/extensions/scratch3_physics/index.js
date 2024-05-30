@@ -991,8 +991,9 @@ class Scratch3Physics {
                 target.rotationStyle ===
                 RenderedTarget.ROTATION_STYLE_ALL_AROUND
             ) {
-                target.setDirection(90 - body.GetAngle() / toRad);
+           //     target.setDirection(90 - body.GetAngle() / toRad);
             }
+            body.SetAngularVelocity(0);
             const pin = pinned[target.id];
             if (!pin) {
                 // clear the angular velocity if not pinned
@@ -1069,6 +1070,10 @@ class Scratch3Physics {
             ) {
                 body.SetAngle((90 - target.direction) * toRad);
                 body.SetAwake(true);
+            }
+            if (fixedRotation) {
+                body.SetAngularVelocity(0);
+                body.SetAngle(0);
             }
         }
     }
