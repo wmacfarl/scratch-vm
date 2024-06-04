@@ -3,9 +3,9 @@ const CATEGORY_WALLS = 0x0001;
 const CATEGORY_NOT_WALLS = 0x0002;
 const CATEGORY_HIDDEN = 0x0008;
 const zoom = 50;
-const LINEAR_DAMPING = 0;
+const LINEAR_DAMPING = 1;
 const ANGULAR_DAMPING = 0;
-const MAX_VELOCITY = 150000;
+const MAX_VELOCITY = 1500;
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // WALLS collide with everything
 const MASK_NOT_WALLS = CATEGORY_WALLS; // NOT_WALLS should be affected by WALLS
@@ -41,10 +41,6 @@ let world;
 const bodies = {};
 const stageBodies = [];
 const toRad = Math.PI / 180;
-
-
-
-
 
 const SPACE_TYPE_OPTIONS = {
     WORLD: "world",
@@ -137,7 +133,6 @@ const _applyForce = function (id, ftype, x, y, dir, pow) {
     }
 };
 
-
 /**
  * Set the X and Y coordinates (No Fencing)
  * @param {!RenderedTarget} rt the renderedTarget.
@@ -208,8 +203,8 @@ const setupStage = function () {
     bodyDef.angle = 0;
 
     let left = -240 / zoom;
-    let right = 240  / zoom;
-    let top = 180  / zoom;
+    let right = 240 / zoom;
+    let top = 180 / zoom;
     let bottom = -180 / zoom;
     let boxWidth = 1000 / zoom;
     let boxHeight = 1000 / zoom;
@@ -250,7 +245,6 @@ const blockIconURI =
 const menuIconURI =
     "data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiDQoJIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmE9Imh0dHA6Ly9ucy5hZG9iZS5jb20vQWRvYmVTVkdWaWV3ZXJFeHRlbnNpb25zLzMuMC8iDQoJIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNDBweCIgaGVpZ2h0PSI0MHB4IiB2aWV3Qm94PSItMy43IC0zLjcgNDAgNDAiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgLTMuNyAtMy43IDQwIDQwIg0KCSB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxkZWZzPg0KPC9kZWZzPg0KPHJlY3QgeD0iOC45IiB5PSIxLjUiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxLjUiIHk9IjE2LjMiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzE2OUZCMCIgc3Ryb2tlLXdpZHRoPSIzIiB3aWR0aD0iMTQuOCIgaGVpZ2h0PSIxNC44Ii8+DQo8cmVjdCB4PSIxNi4zIiB5PSIxNi4zIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiMxNjlGQjAiIHN0cm9rZS13aWR0aD0iMyIgd2lkdGg9IjE0LjgiIGhlaWdodD0iMTQuOCIvPg0KPC9zdmc+";
 
-
 class Scratch3Physics {
     constructor(runtime) {
         /**
@@ -266,7 +260,6 @@ class Scratch3Physics {
             new b2Vec2(0, 0), // gravity (0)
             true // allow sleep
         );
-        console.log("world", world);
         const contactListener = new MyContactListener();
         world.SetContactListener(contactListener);
 
@@ -285,7 +278,7 @@ class Scratch3Physics {
         this.map = {};
 
         fixDef.density = 1.0; // 1.0
-        fixDef.friction = 0; // 0.5
+        fixDef.friction = 0.5; // 0.5
         fixDef.restitution = 0.2; // 0.2
 
         setupStage();
@@ -343,6 +336,21 @@ class Scratch3Physics {
                             type: ArgumentType.STRING,
                             menu: "EnableModeTypes",
                             defaultValue: "normal",
+                        },
+                    },
+                },
+                {
+                    opcode: "setKickStrength",
+                    blockType: BlockType.COMMAND,
+                    text: formatMessage({
+                        id: "physics.setKickStrength",
+                        default: "set kick strength to [strength]",
+                        description: "Set the strength of the kick",
+                    }),
+                    arguments: {
+                        strength: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 10,
                         },
                     },
                 },
@@ -417,6 +425,25 @@ class Scratch3Physics {
                         },
                     },
                 },
+                {
+                    opcode: "getKickStrength",
+                    text: formatMessage({
+                        id: "physics.getKickStrength",
+                        default: "kick strength",
+                        description: "get the kick strength",
+                    }),
+                    blockType: BlockType.REPORTER,
+                },
+                {
+                    opcode: "getBounciness",
+                    text: formatMessage({
+                        id: "physics.getBounciness",
+                        default: "bounciness",
+                        description: "get the bounciness",
+                    }),
+                    blockType: BlockType.REPORTER,
+                },
+
                 {
                     opcode: "getVelocityX",
                     text: formatMessage({
@@ -493,6 +520,37 @@ class Scratch3Physics {
                     },
                 },
                 {
+                    opcode: "setIsWall",
+                    blockType: BlockType.COMMAND,
+                    text: formatMessage({
+                        id: "physics.setIsWall",
+                        default: "set is wall [isWall]",
+                        description: "Sets whether this block is a wall",
+                    }),
+                    arguments: {
+                        isWall: {
+                            type: ArgumentType.STRING,
+                            menu: "WallTypes",
+                            defaultValue: "wall",
+                        },
+                    },
+                },
+                {
+                    opcode: "setLinearDamping",
+                    blockType: BlockType.COMMAND,
+                    text: formatMessage({
+                        id: "physics.setLinearDamping",
+                        default: "set friction to [damping]",
+                        description: "Set the linear damping of the object",
+                    }),
+                    arguments: {
+                        damping: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1,
+                        },
+                    },
+                },
+                {
                     opcode: "setProperties",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
@@ -540,7 +598,16 @@ class Scratch3Physics {
                     opcode: "getStatic",
                     text: formatMessage({
                         id: "physics.getStatic",
-                        default: "static?",
+                        default: "is static?",
+                        description: "get whether this sprite is static",
+                    }),
+                    blockType: BlockType.REPORTER,
+                },
+                {
+                    opcode: "getIsWall",
+                    text: formatMessage({
+                        id: "physics.getIsWall",
+                        default: "is wall?",
                         description: "get whether this sprite is static",
                     }),
                     blockType: BlockType.REPORTER,
@@ -553,6 +620,7 @@ class Scratch3Physics {
                 ShapeTypes: this.SHAPE_TYPE_MENU,
                 EnableModeTypes: this.ENABLE_TYPES_TYPE_MENU,
                 StaticTypes: this.STATIC_TYPE_MENU,
+                WallTypes: this.WALL_TYPE_MENU,
                 FrictionTypes: this.FRICTION_TYPE_MENU,
                 RestitutionTypes: this.RESTITUTION_TYPE_MENU,
                 DensityTypes: this.DENSITY_TYPE_MENU,
@@ -594,9 +662,14 @@ class Scratch3Physics {
     get STATIC_TYPE_MENU() {
         return [
             { text: "free", value: "free" },
-            { text: "wall (cannot move)", value: "wall" },
-            { text: "pushable", value: "pushable" },
-            { text: "pushable (can spin)", value: "pushable-spin" },
+            { text: "static", value: "static" },
+        ];
+    }
+
+    get WALL_TYPE_MENU() {
+        return [
+            { text: "wall", value: true },
+            { text: "not wall", value: false },
         ];
     }
 
@@ -646,13 +719,10 @@ class Scratch3Physics {
             let body = bodies[targetID];
             const linearVelocity = body.GetLinearVelocity();
             const currentPosition = body.GetPosition();
-             previousPosition = prevPos[targetID] ? prevPos[targetID] : { x: 0, y: 0 };
-            // log the velocity, current position, and previous position
-            console.log(
-                "Velocity: ", linearVelocity, "Current Position: ", currentPosition, "Previous Position: ", previousPosition
-          
-            );
-            
+            previousPosition = prevPos[targetID]
+                ? prevPos[targetID]
+                : { x: 0, y: 0 };
+
             const target = this.runtime.getTargetById(targetID);
             if (!target) {
                 world.DestroyBody(body);
@@ -681,11 +751,7 @@ class Scratch3Physics {
 
             const position = body.GetPosition();
 
-            _setXY(
-                target,
-                position.x * zoom, 
-                position.y * zoom 
-            );
+            _setXY(target, position.x * zoom, position.y * zoom);
 
             //TODO:  Does this make sense?  Who gets to decide the rotation?  Physics or Scratch?  When?
             if (
@@ -748,31 +814,17 @@ class Scratch3Physics {
             const fixedRotation = true;
 
             if (prev && (prev.x !== target.x || prev.y !== target.y)) {
-                const pos = new b2Vec2(
-                    target.x / zoom, 
-                    target.y / zoom 
-                );
-                body.SetPosition(pos);
-                if (!fixedRotation) {
-                    body.SetAngle((90 - target.direction) * toRad);
-                }
+                const pos = new b2Vec2(target.x / zoom, target.y / zoom);
                 body.SetAwake(true);
-            } else if (
-                !fixedRotation &&
-                prev &&
-                prev.dir !== target.direction
-            ) {
+                body.SetPosition(pos);
+            }
+            if (prev && prev.dir !== target.direction) {
                 body.SetAngle((90 - target.direction) * toRad);
                 body.SetAwake(true);
-            }
-            if (fixedRotation) {
-                body.SetAngularVelocity(0);
-                body.SetAngle(0);
             }
 
             const velocityMagnitude = body.GetLinearVelocity().Length();
             if (velocityMagnitude > MAX_VELOCITY) {
-                console.log("Clamping velocity");
                 const velocity = body.GetLinearVelocity();
                 velocity.Normalize();
                 velocity.Multiply(MAX_VELOCITY);
@@ -907,7 +959,7 @@ class Scratch3Physics {
             body = this.setPhysicsFor(target); // Ensure the body exists
         }
         let categoryBits, maskBits;
-        if (type === "wall" || type === "pushable") {
+        if (type === "wall") {
             categoryBits = CATEGORY_WALLS;
             maskBits = MASK_WALLS; // WALLS should collide with NOT_WALLS and other WALLS
         } else {
@@ -918,7 +970,6 @@ class Scratch3Physics {
     }
 
     setPhysicsFor(target, props) {
-        console.log("setPhysicsFor", target, props);
         if (!props) {
             props = {};
         }
@@ -977,13 +1028,11 @@ class Scratch3Physics {
 
         _definePolyFromHull(hullPoints);
 
-        const fixedRotation =
-            target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND;
         const body = _placeBody(
             target.id,
             target.x,
             target.y,
-            fixedRotation ? 90 : target.direction
+            target.direction
         );
         //set to dynamic
 
@@ -991,9 +1040,7 @@ class Scratch3Physics {
         body.SetLinearDamping(LINEAR_DAMPING);
         body.SetAngularDamping(ANGULAR_DAMPING);
         body.isStatic = false;
-        if (target.rotationStyle !== RenderedTarget.ROTATION_STYLE_ALL_AROUND) {
-            body.SetFixedRotation(true);
-        }
+        body.SetFixedRotation(true);
 
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
@@ -1029,6 +1076,15 @@ class Scratch3Physics {
         }
 
         return body;
+    }
+
+    setKickStrength(args, util) {
+        const target = util.target;
+        let body = bodies[target.id];
+        if (!body) {
+            body = this.setPhysicsFor(target);
+        }
+        body.kickStrength = args.strength;
     }
 
     setBounciness(args, util) {
@@ -1104,7 +1160,7 @@ class Scratch3Physics {
         const x = Cast.toNumber(args.sx);
         const y = Cast.toNumber(args.sy);
         const force = new b2Vec2(x, y);
-        force.Multiply(30/zoom)
+        force.Multiply(30 / zoom);
         body.SetLinearVelocity(force);
     }
 
@@ -1121,7 +1177,7 @@ class Scratch3Physics {
         const x = Cast.toNumber(args.sx);
         const y = Cast.toNumber(args.sy);
         const force = new b2Vec2(x, y);
-        force.Multiply(30/zoom)
+        force.Multiply(30 / zoom);
         force.Add(body.GetLinearVelocity());
         body.SetLinearVelocity(force);
     }
@@ -1135,13 +1191,40 @@ class Scratch3Physics {
         return body.isStatic;
     }
 
+    getIsWall(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return false;
+        }
+
+        return body.isWall;
+    }
+
+    getBounciness(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return 0;
+        }
+        const fixture = body.GetFixtureList();
+        return fixture.GetRestitution();
+    }
+
+    getKickStrength(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return 0;
+        }
+        return body.kickStrength;
+    }
+
+
     getVelocityX(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
             return 0;
         }
         const x = body.GetLinearVelocity().x;
-        return (x*zoom) / 30
+        return (x * zoom) / 30;
     }
 
     getVelocityY(args, util) {
@@ -1150,12 +1233,29 @@ class Scratch3Physics {
             return 0;
         }
         const y = body.GetLinearVelocity().y;
-        return (y * zoom) / 30
+        return (y * zoom) / 30;
+    }
+
+    setIsWall(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return;
+        }
+        body.isWall = args.isWall;
+        this.setCollisionFilter(util.target, args.isWall);
+    }
+
+    setLinearDamping(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return;
+        }
+        body.SetLinearDamping(args.damping);
     }
 
     setStatic(args, util) {
-        console.log("setStatic", args);
         const target = util.target;
+        console.log("setStatic", args.static);
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
@@ -1165,31 +1265,16 @@ class Scratch3Physics {
         }
         body.SetLinearVelocity(new b2Vec2(0, 0));
         body.SetAngularVelocity(0);
-        body.SetFixedRotation(true);
         switch (args.static) {
             case "free":
                 body.SetType(b2Body.b2_dynamicBody);
                 break;
-            case "wall":
+            case "static":
                 body.SetType(b2Body.b2_staticBody);
                 break;
-            case "pushable":
-                body.SetType(b2Body.b2_dynamicBody);
-                break;
-            case "pushable":
-                body.SetType(b2Body.b2_dynamicBody);
-                body.SetFixedRotation(false);
-                break;
         }
-
-        this.setCollisionFilter(target, args.static);
         body.isStatic = args.static;
-
-        const pos = new b2Vec2(
-            target.x / zoom, 
-            target.y / zoom 
-        );
-
+        const pos = new b2Vec2(target.x / zoom, target.y / zoom);
         body.SetPositionAndAngle(pos, (90 - target.direction) * toRad);
     }
 
@@ -1332,7 +1417,6 @@ function serializeBodies(bodies) {
     }
     return _bodies;
 }
-
 
 function serializeStageBodies(stageBodies) {
     const _stageBodies = [];
