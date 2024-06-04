@@ -1,25 +1,25 @@
 // const SCRATCH_PLUGINS = require('./scratch-plugins');
-const ArgumentType = require('../../extension-support/argument-type');
-const BlockType = require('../../extension-support/block-type');
-const Color = require('../../util/color');
-const log = require('../../util/log');
-const enhanceRuntime = require('./runtime-extensions');
+const ArgumentType = require("../../extension-support/argument-type");
+const BlockType = require("../../extension-support/block-type");
+const Color = require("../../util/color");
+const log = require("../../util/log");
+const enhanceRuntime = require("./runtime-extensions");
 
-const makeMenu = dict => Object.values(dict).map(value => ({text: value, value}));
+const makeMenu = (dict) =>
+    Object.values(dict).map((value) => ({ text: value, value }));
 
 const SPRITE_PROPS = {
-    NAME: 'name',
-    TARGET_ID: 'id',
-    WIDTH: 'width',
-    HEIGHT: 'height',
-    DIAGONAL: 'diagonal',
-    HIDDEN: 'hidden',
-    LAYER: 'layer'
+    NAME: "name",
+    TARGET_ID: "id",
+    WIDTH: "width",
+    HEIGHT: "height",
+    DIAGONAL: "diagonal",
+    HIDDEN: "hidden",
+    LAYER: "layer",
 };
 
 class Scratch3BenderBlocks {
-
-    constructor (runtime) {
+    constructor(runtime) {
         this.runtime = runtime;
 
         // There is no way to get the bender instance from the runtime, so we will need to store it
@@ -29,141 +29,151 @@ class Scratch3BenderBlocks {
         if (runtime.getTargetForStage()) {
             enhanceRuntime(runtime, this);
         } else {
-            runtime.once('TARGETS_UPDATE', () => enhanceRuntime(runtime, this));
+            runtime.once("TARGETS_UPDATE", () => enhanceRuntime(runtime, this));
         }
-
 
         this.skins = new Map();
         this.skinCount = 0;
 
-        this._stageBackgroundColor = 'transparent';
+        this._stageBackgroundColor = "transparent";
 
-        log.info('bender blocks', this);
+        log.info("bender blocks", this);
     }
-    getInfo () {
+    getInfo() {
         return {
-            id: 'bender',
-            name: 'Joylabz Bender',
-            menuIconURI: '',
-            blockIconURI: '',
+            id: "bender",
+            name: "Joylabz Bender",
+            menuIconURI: "",
+            blockIconURI: "",
             blocks: [
                 {
-                    opcode: 'whenBooleanHat',
-                    text: 'when [BOOLEAN]',
+                    opcode: "whenBooleanHat",
+                    text: "when [BOOLEAN]",
                     blockType: BlockType.HAT,
                     shouldRestartExistingThreads: false,
                     isEdgeActivated: false,
                     arguments: {
                         BOOLEAN: {
                             type: ArgumentType.BOOLEAN,
-                            defaultValue: false
-                        }
-                    }
+                            defaultValue: false,
+                        },
+                    },
                 },
                 {
-                    opcode: 'spriteInfo',
-                    text: '[PROPERTY] of current sprite',
+                    opcode: "spriteInfo",
+                    text: "[PROPERTY] of current sprite",
                     blockType: BlockType.REPORTER,
                     arguments: {
                         PROPERTY: {
                             type: ArgumentType.STRING,
                             defaultValue: SPRITE_PROPS.NAME,
-                            menu: 'SPRITE_PROPS'
-                        }
-                    }
+                            menu: "SPRITE_PROPS",
+                        },
+                    },
                 },
                 {
-                    opcode: 'touchingAnySprite',
-                    text: 'touching any sprite',
+                    opcode: "touchingAnySprite",
+                    text: "touching any sprite",
                     blockType: BlockType.BOOLEAN,
-                    arguments: {}
+                    arguments: {},
                 },
                 {
-                    opcode: 'whenGreenFlagOrClone',
-                    text: 'when green flag or start as clone',
+                    opcode: "whenGreenFlagOrClone",
+                    text: "when green flag or start as clone",
                     blockType: BlockType.HAT,
                     shouldRestartExistingThreads: false,
-                    isEdgeActivated: false
+                    isEdgeActivated: false,
                 },
                 {
-                    opcode: 'broadcastLocal',
-                    text: 'self broadcast [MESSAGE]',
+                    opcode: "whenGlitchRemoved",
+                    text: "when glitch removed",
+                    blockType: BlockType.HAT,
+                    shouldRestartExistingThreads: false,
+                    isEdgeActivated: false,
+                },
+                {
+                    opcode: "broadcastLocal",
+                    text: "self broadcast [MESSAGE]",
                     blockType: BlockType.COMMAND,
                     arguments: {
                         MESSAGE: {
                             type: ArgumentType.STRING,
-                            defaultValue: ''
-                        }
-                    }
+                            defaultValue: "",
+                        },
+                    },
                 },
                 {
-                    opcode: 'cloneWithThreads',
-                    text: 'clone self with running threads',
+                    opcode: "cloneWithThreads",
+                    text: "clone self with running threads",
                     blockType: BlockType.COMMAND,
-                    arguments: {}
+                    arguments: {},
                 },
                 {
-                    opcode: 'getPixelColor',
-                    text: 'get color of pixel at ([X],[Y])',
+                    opcode: "getPixelColor",
+                    text: "get color of pixel at ([X],[Y])",
                     blockType: BlockType.REPORTER,
                     arguments: {
                         X: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
+                            defaultValue: 0,
                         },
                         Y: {
                             type: ArgumentType.NUMBER,
-                            defaultValue: 0
-                        }
-                    }
+                            defaultValue: 0,
+                        },
+                    },
                 },
                 {
-                    opcode: 'deleteSelf',
-                    text: 'delete self (gamebender only)',
+                    opcode: "deleteSelf",
+                    text: "delete self (gamebender only)",
                     blockType: BlockType.COMMAND,
-                    arguments: {}
+                    arguments: {},
                 },
                 {
-                    opcode: 'setStageBackgroundColor',
-                    text: 'set stage background color [COLOR]',
+                    opcode: "setStageBackgroundColor",
+                    text: "set stage background color [COLOR]",
                     blockType: BlockType.COMMAND,
                     arguments: {
                         COLOR: {
-                            type: ArgumentType.COLOR
-                        }
-                    }
+                            type: ArgumentType.COLOR,
+                        },
+                    },
                 },
                 {
-                    opcode: 'spriteSwap',
-                    text: 'swap costumes with [SPRITE_NAME]',
+                    opcode: "spriteSwap",
+                    text: "swap costumes with [SPRITE_NAME]",
                     blockType: BlockType.COMMAND,
                     arguments: {
                         SPRITE_NAME: {
-                            type: ArgumentType.STRING
-                        }
-                    }
+                            type: ArgumentType.STRING,
+                        },
+                    },
                 },
                 {
-                    opcode: 'codeDropper',
-                    text: 'drop blocks from [SPRITE_NAME] into myself',
+                    opcode: "codeDropper",
+                    text: "drop blocks from [SPRITE_NAME] into myself",
                     blockType: BlockType.COMMAND,
                     arguments: {
                         SPRITE_NAME: {
-                            type: ArgumentType.STRING
-                        }
-                    }
-                }
+                            type: ArgumentType.STRING,
+                        },
+                    },
+                },
             ],
             menus: {
-                SPRITE_PROPS: makeMenu(SPRITE_PROPS)
-            }
-
+                SPRITE_PROPS: makeMenu(SPRITE_PROPS),
+            },
         };
     }
 
-    spriteSwap (args, {target}) {
+    spriteSwap(args, { target }) {
         if (!this.runtime.GAME_BENDER) {
-            this.runtime.emit('SAY', target, 'say', 'spriteSwap is only available in GameBender');
+            this.runtime.emit(
+                "SAY",
+                target,
+                "say",
+                "spriteSwap is only available in GameBender"
+            );
             return;
         }
 
@@ -179,9 +189,14 @@ class Scratch3BenderBlocks {
         swapTarget.setCostume(swapTarget.currentCostume);
     }
 
-    codeDropper (args, {target}) {
+    codeDropper(args, { target }) {
         if (!this.runtime.GAME_BENDER) {
-            this.runtime.emit('SAY', target, 'say', 'code dropper is only available in GameBender');
+            this.runtime.emit(
+                "SAY",
+                target,
+                "say",
+                "code dropper is only available in GameBender"
+            );
             return;
         }
 
@@ -189,7 +204,7 @@ class Scratch3BenderBlocks {
 
         // if we found a target, and we are not a clone/same target
         if (codeTarget && codeTarget.sprite !== target.sprite) {
-            const {threads, pausedThreads = []} = this.runtime;
+            const { threads, pausedThreads = [] } = this.runtime;
             const targetBlocks = codeTarget.blocks._blocks;
 
             target.blocks.forceNoGlow = true;
@@ -199,22 +214,34 @@ class Scratch3BenderBlocks {
             const newCopiedBlocks = codeTarget.blocks.duplicate();
 
             // inject blocks & variables
-            target.blocks._blocks = {...target.blocks._blocks, ...newCopiedBlocks._blocks};
+            target.blocks._blocks = {
+                ...target.blocks._blocks,
+                ...newCopiedBlocks._blocks,
+            };
 
             for (const script of newCopiedBlocks._scripts) {
                 target.blocks._scripts.push(script);
             }
 
-            target.variables = {...target.variables, ...target.duplicateVariables(newCopiedBlocks)};
+            target.variables = {
+                ...target.variables,
+                ...target.duplicateVariables(newCopiedBlocks),
+            };
 
             target.blocks.resetCache();
 
             // start running blocks for target - first
-            for (const block of this.findRunningTopBlocks({threads, blocks: targetBlocks})) {
+            for (const block of this.findRunningTopBlocks({
+                threads,
+                blocks: targetBlocks,
+            })) {
                 this.runtime._pushThread(block, target);
             }
 
-            const pausedTopBlocks = this.findRunningTopBlocks({threads: pausedThreads, blocks: targetBlocks});
+            const pausedTopBlocks = this.findRunningTopBlocks({
+                threads: pausedThreads,
+                blocks: targetBlocks,
+            });
 
             if (pausedTopBlocks.length) {
                 this.runtime.threads = pausedThreads;
@@ -230,11 +257,10 @@ class Scratch3BenderBlocks {
 
                 this.runtime.threads = threads;
             }
-
         }
     }
-    
-    setStageBackgroundColor (args) {
+
+    setStageBackgroundColor(args) {
         const ctx = this._previewCtx;
         const canvas = this._previewCanvas;
         const [width, height] = this.runtime.renderer.getNativeSize();
@@ -251,25 +277,26 @@ class Scratch3BenderBlocks {
         this.runtime.requestRedraw();
     }
 
-    deleteSelf (args, util) {
-        const {target} = util;
+    deleteSelf(args, util) {
+        const { target } = util;
         if (target.isStage) {
             return;
         }
-        this.runtime.stopForTarget(target);
+
 
         if (target.isOriginal) {
-            target.isDestroyed = true;      
+            target.isDestroyed = true;
             target.setVisible(false);
+        } else {
+            this.runtime.disposeTarget(target);
         }
-        this.runtime.disposeTarget(target);
+        this.runtime.stopForTarget(target);
     }
-    getPixelColor (args) {
-        const {X, Y} = args;
+    getPixelColor(args) {
+        const { X, Y } = args;
         // the drawList is front to back so need to reverse it for sampleColor3b
         const drawList = this.runtime.renderer._drawList.slice().reverse();
-        const allDrawables = drawList.map(id => {
-
+        const allDrawables = drawList.map((id) => {
             const drawable = this.runtime.renderer._allDrawables[id];
 
             // need this to update the silhouette dirty property on the skin
@@ -277,41 +304,48 @@ class Scratch3BenderBlocks {
             drawable.updateMatrix();
             drawable.skin.updateSilhouette();
 
-            return {drawable};
+            return { drawable };
         });
 
-        const visibleDrawables = allDrawables.filter(item => item.drawable._visible === true);
-        const rgb = this.runtime.renderer.constructor.sampleColor3b([X, Y, 0], visibleDrawables);
+        const visibleDrawables = allDrawables.filter(
+            (item) => item.drawable._visible === true
+        );
+        const rgb = this.runtime.renderer.constructor.sampleColor3b(
+            [X, Y, 0],
+            visibleDrawables
+        );
         const [r, g, b] = rgb;
 
-        return Color.rgbToHex({r, g, b});
+        return Color.rgbToHex({ r, g, b });
     }
 
-    spriteInfo (args, util) {
+    spriteInfo(args, util) {
         const bounds = this.runtime.renderer.getBounds(util.target.drawableID);
 
         switch (args.PROPERTY) {
-        case SPRITE_PROPS.NAME:
-            return util.target.sprite.name;
-        case SPRITE_PROPS.WIDTH:
-            return Math.ceil(bounds.width);
-        case SPRITE_PROPS.HEIGHT:
-            return Math.ceil(bounds.height);
-        case SPRITE_PROPS.DIAGONAL:
-            return Math.ceil(Math.hypot(bounds.width, bounds.height));
-        case SPRITE_PROPS.HIDDEN:
-            return util.target.visible ? 0 : 1;
-        case SPRITE_PROPS.TARGET_ID:
-            return util.target.id;
-        case SPRITE_PROPS.LAYER:
-            return this.runtime.renderer._drawList.findIndex(id => id === util.target.drawableID);
+            case SPRITE_PROPS.NAME:
+                return util.target.sprite.name;
+            case SPRITE_PROPS.WIDTH:
+                return Math.ceil(bounds.width);
+            case SPRITE_PROPS.HEIGHT:
+                return Math.ceil(bounds.height);
+            case SPRITE_PROPS.DIAGONAL:
+                return Math.ceil(Math.hypot(bounds.width, bounds.height));
+            case SPRITE_PROPS.HIDDEN:
+                return util.target.visible ? 0 : 1;
+            case SPRITE_PROPS.TARGET_ID:
+                return util.target.id;
+            case SPRITE_PROPS.LAYER:
+                return this.runtime.renderer._drawList.findIndex(
+                    (id) => id === util.target.drawableID
+                );
         }
     }
 
-    findRunningTopBlocks ({threads, blocks}) {
+    findRunningTopBlocks({ threads, blocks }) {
         const runningBlocks = new Set();
 
-        threads.forEach(thread => {
+        threads.forEach((thread) => {
             if (blocks[thread.topBlock]) {
                 runningBlocks.add(thread.topBlock);
             }
@@ -320,17 +354,19 @@ class Scratch3BenderBlocks {
         return [...runningBlocks];
     }
 
-    cloneWithThreads (args, util) {
+    cloneWithThreads(args, util) {
         const newClone = util.target.makeClone();
         if (newClone) {
             this.runtime.addTarget(newClone);
             const runningBlocks = this.findRunningTopBlocks({
                 threads: this.runtime.threads,
-                blocks: util.target.blocks._blocks
+                blocks: util.target.blocks._blocks,
             });
 
             // filter newly created  thread for cloning
-            const filteredRunningBlocks = runningBlocks.filter(topBlock => topBlock !== util.thread.topBlock);
+            const filteredRunningBlocks = runningBlocks.filter(
+                (topBlock) => topBlock !== util.thread.topBlock
+            );
 
             for (const block of filteredRunningBlocks) {
                 this.runtime._pushThread(block, newClone);
@@ -338,35 +374,46 @@ class Scratch3BenderBlocks {
         }
     }
 
-    touchingAnySprite (args, util) {
+    touchingAnySprite(args, util) {
         const target = util.target;
-        const otherSprites = this.runtime.targets.filter(t => t !== target && !t.isStage);
+        const otherSprites = this.runtime.targets.filter(
+            (t) => t !== target && !t.isStage
+        );
         return this.runtime.renderer.isTouchingDrawables(
-            target.drawableID, otherSprites.map(({drawableID}) => drawableID)
+            target.drawableID,
+            otherSprites.map(({ drawableID }) => drawableID)
         );
     }
 
-    whenGreenFlagOrClone () {
+    whenGreenFlagOrClone() {
         return true;
     }
 
-    whenBooleanHat (args) {
+    whenGlitchRemoved() {
+        return true;
+    }
+
+    whenBooleanHat(args) {
         return args.BOOLEAN;
     }
 
-    broadcastLocal (args, util) {
-        const broadcastVar = util.runtime.getTargetForStage().lookupBroadcastMsg(
-            null, args.MESSAGE
-        );
+    broadcastLocal(args, util) {
+        const broadcastVar = util.runtime
+            .getTargetForStage()
+            .lookupBroadcastMsg(null, args.MESSAGE);
         if (broadcastVar) {
             const BROADCAST_OPTION = broadcastVar.name;
-            util.startHats('event_whenbroadcastreceived', {
-                BROADCAST_OPTION
-            }, util.target);
+            util.startHats(
+                "event_whenbroadcastreceived",
+                {
+                    BROADCAST_OPTION,
+                },
+                util.target
+            );
         }
     }
 
-    isConnected () {
+    isConnected() {
         return this.client.ready;
     }
 }
