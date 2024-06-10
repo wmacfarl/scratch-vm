@@ -5,7 +5,7 @@ const CATEGORY_HIDDEN = 0x0008;
 const zoom = 50;
 const LINEAR_DAMPING = 1;
 const ANGULAR_DAMPING = 0;
-const MAX_VELOCITY = 1500;
+const MAX_VELOCITY = 200;
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // WALLS collide with everything
 const MASK_NOT_WALLS = CATEGORY_WALLS; // NOT_WALLS should be affected by WALLS
@@ -443,7 +443,6 @@ class Scratch3Physics {
                     }),
                     blockType: BlockType.REPORTER,
                 },
-
                 {
                     opcode: "getVelocityX",
                     text: formatMessage({
@@ -717,8 +716,6 @@ class Scratch3Physics {
 
         for (const targetID in bodies) {
             let body = bodies[targetID];
-            const linearVelocity = body.GetLinearVelocity();
-            const currentPosition = body.GetPosition();
             previousPosition = prevPos[targetID]
                 ? prevPos[targetID]
                 : { x: 0, y: 0 };
@@ -744,9 +741,9 @@ class Scratch3Physics {
 
             target.physicsSize = target.size;
             if (!target.visible && !target.isHiddenPhysics) {
-                this.setHidden(target, true);
+                //     this.setHidden(target, true);
             } else if (target.visible && target.isHiddenPhysics) {
-                this.setHidden(target, false);
+                //        this.setHidden(target, false);
             }
 
             const position = body.GetPosition();
@@ -864,10 +861,7 @@ class Scratch3Physics {
         }
 
         const target = util.target;
-        const body = this.setPhysicsFor(target, args.shape);
-        if (body) {
-            body.SetBullet(args.mode === "bullet");
-        }
+        const body = this.setPhysicsFor(target);
     }
 
     setHidden(target, isHidden) {
@@ -880,12 +874,12 @@ class Scratch3Physics {
         // Determine the new category and mask bits based on the isHidden flag
         let categoryBits = isHidden
             ? CATEGORY_HIDDEN
-            : target.isPhysicsWall
+            : body.isWall
             ? CATEGORY_WALLS
             : CATEGORY_NOT_WALLS;
         let maskBits = isHidden
             ? 0
-            : target.isPhysicsWall
+            : body.isWall
             ? CATEGORY_WALLS | CATEGORY_NOT_WALLS
             : CATEGORY_WALLS; // If not hidden, revert to previous collision rules
 
@@ -970,14 +964,24 @@ class Scratch3Physics {
     }
 
     setPhysicsFor(target, props) {
-        if (!props) {
-            props = {};
+        let isWall = false, kickStrength = 0, isStatic = false, allowScreenwrap = false;
+        if (props) {
+            isWall = props.isWall;
+            kickStrength = props.kickStrength;
+            isStatic = props.isStatic;
+            allowScreenwrap = props.allowScreenwrap;
+        } else {
+            const oldBody = bodies[target.id];
+            if (oldBody) {
+                isWall = oldBody.isWall;
+                isStatic = oldBody.isStatic;
+                allowScreenwrap = oldBody.allowScreenwrap;
+                kickStrength = oldBody.kickStrength;
+            }
         }
-        const {
-            kickStrength = 0,
-            isStatic = false,
-            allowScreenwrap = false,
-        } = props;
+
+
+
         const r = this.runtime.renderer;
         let startHidden = false;
         if (target.visible === false) {
@@ -1074,7 +1078,7 @@ class Scratch3Physics {
         ) {
             fixture.SetFriction(0);
         }
-
+        this.setCollisionFilter(target, isWall ? "wall" : "not wall");
         return body;
     }
 
@@ -1217,7 +1221,6 @@ class Scratch3Physics {
         return body.kickStrength;
     }
 
-
     getVelocityX(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
@@ -1242,7 +1245,8 @@ class Scratch3Physics {
             return;
         }
         body.isWall = args.isWall;
-        this.setCollisionFilter(util.target, args.isWall);
+        const isWallString = args.isWall ? "wall" : "not wall";
+        this.setCollisionFilter(util.target, isWallString);
     }
 
     setLinearDamping(args, util) {
@@ -1255,7 +1259,6 @@ class Scratch3Physics {
 
     setStatic(args, util) {
         const target = util.target;
-        console.log("setStatic", args.static);
         let body = bodies[util.target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
@@ -1273,7 +1276,7 @@ class Scratch3Physics {
                 body.SetType(b2Body.b2_staticBody);
                 break;
         }
-        body.isStatic = args.static;
+        body.isStatic = args.static === "static";
         const pos = new b2Vec2(target.x / zoom, target.y / zoom);
         body.SetPositionAndAngle(pos, (90 - target.direction) * toRad);
     }
