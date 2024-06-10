@@ -6,6 +6,7 @@ const zoom = 50;
 const LINEAR_DAMPING = 1;
 const ANGULAR_DAMPING = 0;
 const MAX_VELOCITY = 200;
+const MIN_VELOCITY = .1;
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // WALLS collide with everything
 const MASK_NOT_WALLS = CATEGORY_WALLS; // NOT_WALLS should be affected by WALLS
@@ -827,6 +828,9 @@ class Scratch3Physics {
                 velocity.Multiply(MAX_VELOCITY);
                 body.SetLinearVelocity(velocity);
             }
+            if (velocityMagnitude < MIN_VELOCITY) {
+                body.SetLinearVelocity(new b2Vec2(0, 0));
+            }
         }
     }
 
@@ -964,7 +968,10 @@ class Scratch3Physics {
     }
 
     setPhysicsFor(target, props) {
-        let isWall = false, kickStrength = 0, isStatic = false, allowScreenwrap = false;
+        let isWall = false,
+            kickStrength = 0,
+            isStatic = false,
+            allowScreenwrap = false;
         if (props) {
             isWall = props.isWall;
             kickStrength = props.kickStrength;
@@ -979,8 +986,6 @@ class Scratch3Physics {
                 kickStrength = oldBody.kickStrength;
             }
         }
-
-
 
         const r = this.runtime.renderer;
         let startHidden = false;
@@ -1078,7 +1083,7 @@ class Scratch3Physics {
         ) {
             fixture.SetFriction(0);
         }
-        this.setCollisionFilter(target, isWall ? "wall" : "not wall");
+        body.targetId = target.id;
         return body;
     }
 
@@ -1263,7 +1268,8 @@ class Scratch3Physics {
         if (!body) {
             body = this.setPhysicsFor(target);
         }
-        if (body.isStatic === args.static) {
+        const argsStatic = args.static === "static" ? true : false;
+        if (body.isStatic === argsStatic) {
             return;
         }
         body.SetLinearVelocity(new b2Vec2(0, 0));
@@ -1440,6 +1446,7 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
         const bodyA = fixtureA.GetBody();
         const bodyB = fixtureB.GetBody();
         const worldManifold = new Box2D.Collision.b2WorldManifold();
+        console.log("PostSolve", bodyA, bodyB);
 
         // This populates worldManifold with the correct contact points and normal
         contact.GetWorldManifold(worldManifold);
@@ -1462,6 +1469,58 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
                 -normal.y
             );
             this.applyKick(bodyA, bodyB.kickStrength, kickDirection);
+        }
+
+        const velocityA = bodyA.GetLinearVelocity();
+        const velocityB = bodyB.GetLinearVelocity();
+        const massA = bodyA.GetMass();
+        const massB = bodyB.GetMass();
+        const positionA = bodyA.GetPosition();
+        const positionB = bodyB.GetPosition();
+        console.log("velocityA", velocityA, "velocityB", velocityB);
+        console.log("positionA", positionA, "positionB", positionB);
+        console.log("massA", massA, "massB", massB);
+        console.log("bodaA", bodyA, "bodyB", bodyB);
+        const massRatio = 1
+        if (velocityA.x === 0 && velocityA.y === 0) {
+            let previousPosition = scratchPositionToBox2DPosition(prevPos[bodyA.targetId]);
+            if (previousPosition) {
+                const delta = {
+                    x: positionA.x - previousPosition.x,
+                    y: positionA.y - previousPosition.y,
+                };
+                const deltaMagnitude = Math.sqrt(delta.x * delta.x + delta.y * delta.y);
+                if (deltaMagnitude > .2) {
+                    delta.x = delta.x / deltaMAgnitude * .2;
+                    delta.y = delta.y / deltaMAgnitude * .2;                    
+                }
+
+                const newVelocity = {
+                    x: delta.x * massRatio + velocityB.x,
+                    y: delta.y * massRatio + velocityB.y,
+                };
+                bodyB.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y));
+            }
+        }
+        if (velocityB.x === 0 && velocityB.y === 0) {
+            const previousPosition = scratchPositionToBox2DPosition(prevPos[bodyB.targetId])
+            if (previousPosition) {
+                const delta = {
+                    x: positionB.x - previousPosition.x,
+                    y: positionB.y - previousPosition.y,
+                };
+                const deltaMagnitude = Math.sqrt(delta.x * delta.x + delta.y * delta.y);
+                if (deltaMagnitude > .2) {
+                    delta.x = delta.x / deltaMAgnitude * .2;
+                    delta.y = delta.y / deltaMAgnitude * .2;                    
+                }
+
+                const newVelocity = {
+                    x: delta.x * massRatio + velocityA.x,
+                    y: delta.y * massRatio + velocityA.y,
+                };
+                bodyA.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y));
+            }
         }
     }
 
@@ -1505,6 +1564,14 @@ function updateCollisionFilter(body, categoryBits, maskBits) {
         contact.FlagForFiltering();
         contactEdge = contactEdge.next;
     }
+}
+
+function scratchPositionToBox2DPosition(position) {
+    if (!position) {
+        return null;
+    }
+    const {x, y} = position;
+    return new b2Vec2(x / zoom, y / zoom);
 }
 
 module.exports = Scratch3Physics;
