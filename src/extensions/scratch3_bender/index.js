@@ -288,9 +288,10 @@ class Scratch3BenderBlocks {
             target.isDestroyed = true;
             target.setVisible(false);
         } else {
+            this.runtime.stopForTarget(target);
+
             this.runtime.disposeTarget(target);
         }
-        this.runtime.stopForTarget(target);
     }
     getPixelColor(args) {
         const { X, Y } = args;
