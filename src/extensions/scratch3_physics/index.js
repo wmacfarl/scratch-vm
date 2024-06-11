@@ -741,10 +741,10 @@ class Scratch3Physics {
             }
 
             target.physicsSize = target.size;
-            if (!target.visible && !target.isHiddenPhysics) {
-                //     this.setHidden(target, true);
-            } else if (target.visible && target.isHiddenPhysics) {
-                //        this.setHidden(target, false);
+            if (!target.visible && !body.isHidden){
+                this.setHidden(target, true);
+            } else if (target.visible && body.isHidden) {
+                this.setHidden(target, false);
             }
 
             const position = body.GetPosition();
@@ -900,7 +900,7 @@ class Scratch3Physics {
         }
 
         // Update any metadata or properties you use to track the hidden state of the target
-        target.isHiddenPhysics = isHidden;
+        body.isHidden = isHidden;
 
         // Wake up the body so that it's active in the next step
         body.SetAwake(true);
@@ -972,11 +972,13 @@ class Scratch3Physics {
             kickStrength = 0,
             isStatic = false,
             allowScreenwrap = false;
+            isHidden = false;
         if (props) {
             isWall = props.isWall;
             kickStrength = props.kickStrength;
             isStatic = props.isStatic;
             allowScreenwrap = props.allowScreenwrap;
+            isHidden = props.isHidden;
         } else {
             const oldBody = bodies[target.id];
             if (oldBody) {
@@ -984,14 +986,15 @@ class Scratch3Physics {
                 isStatic = oldBody.isStatic;
                 allowScreenwrap = oldBody.allowScreenwrap;
                 kickStrength = oldBody.kickStrength;
+                isHidden = oldBody.isHidden;
             }
         }
 
         const r = this.runtime.renderer;
-        let startHidden = false;
+
         if (target.visible === false) {
             target.setVisible(true);
-            startHidden = true;
+            isHidden = true;
         }
         const drawable = r._allDrawables[target.drawableID];
 
@@ -1070,11 +1073,11 @@ class Scratch3Physics {
         }
 
         body.kickStrength = kickStrength;
-        if (startHidden) {
+        if (isHidden) {
             target.setVisible(false);
-
-            this.setHidden(target, true);
         }
+        this.setHidden(target, isHidden);
+
         //set friction to 0 for all fixtures
         for (
             let fixture = body.GetFixtureList();
@@ -1368,6 +1371,7 @@ class Scratch3Physics {
                     isWall: body.isWall,
                     allowScreenwrap: body.allowScreenwrap,
                     kickStrength: body.kickStrength,
+                    isHidden: body.isHidden,
                 });
                 const b = bodies[target.id];
                 b.SetPosition(body.position);
@@ -1418,6 +1422,7 @@ function serializeBodies(bodies) {
             angularVelocity: body.GetAngularVelocity(),
             fixedRotation: body.IsFixedRotation(),
             type: body.GetType(),
+            isHidden: body.isHidden,
             isStatic: body.isStatic,
             isWall: body.isWall,
             allowScreenwrap: body.allowScreenwrap,
@@ -1516,8 +1521,8 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
                     delta.x * delta.x + delta.y * delta.y
                 );
                 if (deltaMagnitude > 0.2) {
-                    delta.x = (delta.x / deltaAgnitude) * 0.2;
-                    delta.y = (delta.y / deltaAgnitude) * 0.2;
+                    delta.x = (delta.x / deltaMagnitude) * 0.2;
+                    delta.y = (delta.y / deltaMagnitude) * 0.2;
                 }
 
                 const newVelocity = {
