@@ -6,7 +6,7 @@ const zoom = 50;
 const LINEAR_DAMPING = 1;
 const ANGULAR_DAMPING = 0;
 const MAX_VELOCITY = 200;
-const MIN_VELOCITY = .1;
+const MIN_VELOCITY = 0.1;
 // Masks
 const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // WALLS collide with everything
 const MASK_NOT_WALLS = CATEGORY_WALLS; // NOT_WALLS should be affected by WALLS
@@ -1050,7 +1050,7 @@ class Scratch3Physics {
         body.SetAngularDamping(ANGULAR_DAMPING);
         body.isStatic = false;
         body.SetFixedRotation(true);
-
+        this.setCollisionFilter(target, isWall ? "wall" : "not wall");
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
                 _definePolyFromHull(allHulls[i]);
@@ -1446,7 +1446,6 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
         const bodyA = fixtureA.GetBody();
         const bodyB = fixtureB.GetBody();
         const worldManifold = new Box2D.Collision.b2WorldManifold();
-        console.log("PostSolve", bodyA, bodyB);
 
         // This populates worldManifold with the correct contact points and normal
         contact.GetWorldManifold(worldManifold);
@@ -1455,14 +1454,14 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
         const normal = worldManifold.m_normal; // This is a b2Vec2
 
         // Determine if one of the bodies is a kicker
-        if (bodyA.kickStrength) {
+        if (bodyA.kickStrength > 0) {
             const kickDirection = new Box2D.Common.Math.b2Vec2(
                 normal.x,
                 normal.y
             );
             this.applyKick(bodyB, bodyA.kickStrength, kickDirection);
         }
-        if (bodyB.kickStrength) {
+        if (bodyB.kickStrength > 0) {
             // For bodyB, the kick direction should be opposite
             const kickDirection = new Box2D.Common.Math.b2Vec2(
                 -normal.x,
@@ -1477,49 +1476,57 @@ class MyContactListener extends Box2D.Dynamics.b2ContactListener {
         const massB = bodyB.GetMass();
         const positionA = bodyA.GetPosition();
         const positionB = bodyB.GetPosition();
-        console.log("velocityA", velocityA, "velocityB", velocityB);
-        console.log("positionA", positionA, "positionB", positionB);
-        console.log("massA", massA, "massB", massB);
-        console.log("bodaA", bodyA, "bodyB", bodyB);
-        const massRatio = 1
+        const massRatio = 1;
         if (velocityA.x === 0 && velocityA.y === 0) {
-            let previousPosition = scratchPositionToBox2DPosition(prevPos[bodyA.targetId]);
+            let previousPosition = scratchPositionToBox2DPosition(
+                prevPos[bodyA.targetId]
+            );
             if (previousPosition) {
                 const delta = {
                     x: positionA.x - previousPosition.x,
                     y: positionA.y - previousPosition.y,
                 };
-                const deltaMagnitude = Math.sqrt(delta.x * delta.x + delta.y * delta.y);
-                if (deltaMagnitude > .2) {
-                    delta.x = delta.x / deltaMAgnitude * .2;
-                    delta.y = delta.y / deltaMAgnitude * .2;                    
+                const deltaMagnitude = Math.sqrt(
+                    delta.x * delta.x + delta.y * delta.y
+                );
+                if (deltaMagnitude > 0.2) {
+                    delta.x = (delta.x / deltaMagnitude) * 0.2;
+                    delta.y = (delta.y / deltaMagnitude) * 0.2;
                 }
 
                 const newVelocity = {
                     x: delta.x * massRatio + velocityB.x,
                     y: delta.y * massRatio + velocityB.y,
                 };
-                bodyB.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y));
+                bodyB.SetLinearVelocity(
+                    new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y)
+                );
             }
         }
         if (velocityB.x === 0 && velocityB.y === 0) {
-            const previousPosition = scratchPositionToBox2DPosition(prevPos[bodyB.targetId])
+            const previousPosition = scratchPositionToBox2DPosition(
+                prevPos[bodyB.targetId]
+            );
             if (previousPosition) {
                 const delta = {
                     x: positionB.x - previousPosition.x,
                     y: positionB.y - previousPosition.y,
                 };
-                const deltaMagnitude = Math.sqrt(delta.x * delta.x + delta.y * delta.y);
-                if (deltaMagnitude > .2) {
-                    delta.x = delta.x / deltaMAgnitude * .2;
-                    delta.y = delta.y / deltaMAgnitude * .2;                    
+                const deltaMagnitude = Math.sqrt(
+                    delta.x * delta.x + delta.y * delta.y
+                );
+                if (deltaMagnitude > 0.2) {
+                    delta.x = (delta.x / deltaAgnitude) * 0.2;
+                    delta.y = (delta.y / deltaAgnitude) * 0.2;
                 }
 
                 const newVelocity = {
                     x: delta.x * massRatio + velocityA.x,
                     y: delta.y * massRatio + velocityA.y,
                 };
-                bodyA.SetLinearVelocity(new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y));
+                bodyA.SetLinearVelocity(
+                    new Box2D.Common.Math.b2Vec2(newVelocity.x, newVelocity.y)
+                );
             }
         }
     }
@@ -1570,7 +1577,7 @@ function scratchPositionToBox2DPosition(position) {
     if (!position) {
         return null;
     }
-    const {x, y} = position;
+    const { x, y } = position;
     return new b2Vec2(x / zoom, y / zoom);
 }
 

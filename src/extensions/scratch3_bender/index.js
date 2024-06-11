@@ -289,7 +289,6 @@ class Scratch3BenderBlocks {
             target.setVisible(false);
         } else {
             this.runtime.stopForTarget(target);
-
             this.runtime.disposeTarget(target);
         }
     }
