@@ -732,9 +732,9 @@ class Scratch3Physics {
             
 
             const position = body.GetPosition();
-            if (!body.isStatic) {
+         //   if (!body.isStatic) {
                 _setXY(target, position.x * zoom, position.y * zoom);
-            }
+         //   }
 
             //TODO:  Does this make sense?  Who gets to decide the rotation?  Physics or Scratch?  When?
             if (
@@ -782,7 +782,6 @@ class Scratch3Physics {
     }
 
     _checkMoved() {
-        console.log("check moved");
         for (const targetID in bodies) {
             let body = bodies[targetID];
             let target = this.runtime.getTargetById(targetID);
@@ -809,7 +808,7 @@ if (
             ) {
                 const cachedVelocity = body.GetLinearVelocity();
                 body = this.setPhysicsFor(target);
-             //   body.SetLinearVelocity(cachedVelocity);
+                body.SetLinearVelocity(cachedVelocity);
             }
 
             target.physicsSize = target.size;
@@ -821,10 +820,7 @@ if (
             if (prev && (prev.x !== target.x || prev.y !== target.y)) {
                 const pos = new b2Vec2(target.x / zoom, target.y / zoom);
                 body.SetAwake(true);
-                if (!body.isStatic){
-                    console.log("setting position for", target.sprite.name, pos.x, pos.y)
                 body.SetPosition(pos);
-                }
             }
             if (prev && prev.dir !== target.direction) {
                 body.SetAngle((90 - target.direction) * toRad);
@@ -836,10 +832,10 @@ if (
                 const velocity = body.GetLinearVelocity();
                 velocity.Normalize();
                 velocity.Multiply(MAX_VELOCITY);
-             //   body.SetLinearVelocity(velocity);
+                body.SetLinearVelocity(velocity);
             }
             if (velocityMagnitude < MIN_VELOCITY) {
-             //   body.SetLinearVelocity(new b2Vec2(0, 0));
+                body.SetLinearVelocity(new b2Vec2(0, 0));
             }
         }
     }
@@ -862,13 +858,6 @@ if (
      * @property {string} shape - the shape
      */
     setPhysics(args, util) {
-        // this._playDrumForBeats(args.DRUM, args.BEATS, util);
-        // if (util.runtime.audioEngine === null) return;
-        // if (util.target.sprite.soundBank === null) return;
-
-        // const dx = Cast.toNumber(args.x);
-        // const dy = Cast.toNumber(args.y);
-
         if (args.shape === SHAPE_TYPE_OPTIONS.ALL) {
             this.setPhysicsAll();
             return;
@@ -879,7 +868,6 @@ if (
     }
 
     setHidden(target, isHidden) {
-        // Retrieve the Box2D body associated with the target
         let body = bodies[target.id];
         if (!body) {
             body = this.setPhysicsFor(target);
@@ -1036,14 +1024,20 @@ if (
             target.direction
         );
         //set to dynamic
-
-        body.SetType(b2Body.b2_dynamicBody);
+        if (isStatic) {
+            body.SetType(b2Body.b2_staticBody);
+            body.isStatic = true;
+        } else {
+            body.SetType(b2Body.b2_dynamicBody);
+            body.isStatic = false;
+        }        
+        this.setCollisionFilter(target, isWall ? "wall" : "not wall");
         body.SetLinearDamping(LINEAR_DAMPING);
         body.SetAngularDamping(ANGULAR_DAMPING);
-
+        body.SetPosition(new b2Vec2(target.x / zoom, target.y / zoom));
         body.SetFixedRotation(true);
         body.isWall = isWall;
-        this.setCollisionFilter(target, isWall ? "wall" : "not wall");
+
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
                 _definePolyFromHull(allHulls[i]);
@@ -1057,12 +1051,7 @@ if (
         }
 
     //    this.setAllowScreenwrap(target, allowScreenwrap);
-        if (isStatic) {
-            body.SetType(b2Body.b2_staticBody);
-            body.isStatic = true;
-        } else {
-            body.isStatic = false;
-        }
+
 
         body.kickStrength = kickStrength;
         if (isHidden) {
@@ -1449,7 +1438,6 @@ function serializeStageBodies(stageBodies) {
 
 class MyContactListener extends Box2D.Dynamics.b2ContactListener {
     PostSolve(contact, impulse) {
-        return
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
         const bodyA = fixtureA.GetBody();
