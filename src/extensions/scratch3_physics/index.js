@@ -668,8 +668,8 @@ class Scratch3Physics {
 
     get WALL_TYPE_MENU() {
         return [
-            { text: "wall", value: true },
-            { text: "not wall", value: false },
+            { text: "wall", value: "wall" },
+            { text: "not wall", value: "not wall"},
         ];
     }
 
@@ -874,45 +874,13 @@ class Scratch3Physics {
         if (!body) {
             body = this.setPhysicsFor(target);
         }
-
-        // Determine the new category and mask bits based on the isHidden flag
-        let categoryBits = isHidden
-            ? CATEGORY_HIDDEN
-            : body.isWall
-            ? CATEGORY_WALLS
-            : CATEGORY_NOT_WALLS;
-        let maskBits = isHidden
-            ? 0
-            : body.isWall
-            ? CATEGORY_WALLS | CATEGORY_NOT_WALLS
-            : CATEGORY_WALLS; // If not hidden, revert to previous collision rules
-
-        // Loop through all fixtures of the body and update their filter data
-        for (
-            let fixture = body.GetFixtureList();
-            fixture;
-            fixture = fixture.GetNext()
-        ) {
-            let filter = fixture.GetFilterData();
-            filter.categoryBits = categoryBits;
-            filter.maskBits = maskBits;
-            fixture.SetFilterData(filter);
+        if (isHidden){
+            this.setCollisionFilter(target, "not wall")
+        } else {
+            this.setCollisionFilter(target, body.isWall ? "wall" : "not wall")
         }
-
-        // Update any metadata or properties you use to track the hidden state of the target
         body.isHidden = isHidden;
 
-        // Wake up the body so that it's active in the next step
-        body.SetAwake(true);
-
-        // Clear contacts by flagging them for filtering
-        let contactEdge = body.GetContactList();
-        while (contactEdge) {
-            let contact = contactEdge.contact;
-            // Mark the contact for a new filtering evaluation
-            contact.FlagForFiltering();
-            contactEdge = contactEdge.next;
-        }
     }
 
     setAllowScreenwrap(target, allowScreenwrap) {
@@ -974,13 +942,25 @@ class Scratch3Physics {
             allowScreenwrap = false;
             isHidden = false;
         if (props) {
+            if (props.isWall === "wall") {
+                props.isWall = true;
+            } else {
+                props.isWall = false;
+            }
             isWall = props.isWall;
             kickStrength = props.kickStrength;
             isStatic = props.isStatic;
             allowScreenwrap = props.allowScreenwrap;
             isHidden = props.isHidden;
         } else {
-            const oldBody = bodies[target.id];
+            let oldBody = bodies[target.id];
+            if (!oldBody) {
+                if (!target.isOriginal){
+                    const originalId = target.sprite.clones[0].id
+                    oldBody = bodies[originalId];
+            
+                }
+            }
             if (oldBody) {
                 isWall = oldBody.isWall;
                 isStatic = oldBody.isStatic;
@@ -989,7 +969,6 @@ class Scratch3Physics {
                 isHidden = oldBody.isHidden;
             }
         }
-
         const r = this.runtime.renderer;
 
         if (target.visible === false) {
@@ -1051,8 +1030,9 @@ class Scratch3Physics {
         body.SetType(b2Body.b2_dynamicBody);
         body.SetLinearDamping(LINEAR_DAMPING);
         body.SetAngularDamping(ANGULAR_DAMPING);
-        body.isStatic = false;
+
         body.SetFixedRotation(true);
+        body.isWall = isWall;
         this.setCollisionFilter(target, isWall ? "wall" : "not wall");
         if (allHulls) {
             for (let i = 1; i < allHulls.length; i++) {
@@ -1066,10 +1046,12 @@ class Scratch3Physics {
             target.setCostume(currentCostumeIndex);
         }
 
-        this.setAllowScreenwrap(target, allowScreenwrap);
+    //    this.setAllowScreenwrap(target, allowScreenwrap);
         if (isStatic) {
             body.SetType(b2Body.b2_staticBody);
             body.isStatic = true;
+        } else {
+            body.isStatic = false;
         }
 
         body.kickStrength = kickStrength;
@@ -1250,10 +1232,20 @@ class Scratch3Physics {
     setIsWall(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
+            bo
             return;
         }
-        body.isWall = args.isWall;
-        const isWallString = args.isWall ? "wall" : "not wall";
+        let isWall = false;
+        
+        if (args.isWall === "wall" || args.isWall === true){
+            isWall = true
+        } else {
+            isWall= false
+        }
+      
+
+        body.isWall = isWall;
+        const isWallString = isWall ? "wall" : "not wall";
         this.setCollisionFilter(util.target, isWallString);
     }
 
@@ -1366,6 +1358,7 @@ class Scratch3Physics {
         this.runtime.targets.forEach((target) => {
             const body = _bodies[target.id];
             if (body) {
+                
                 this.setPhysicsFor(target, {
                     isStatic: body.isStatic,
                     isWall: body.isWall,
