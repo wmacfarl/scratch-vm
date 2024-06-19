@@ -940,7 +940,7 @@ if (
             allowScreenwrap = false;
             isHidden = false;
         if (props) {
-            if (props.isWall === "wall") {
+            if (props.isWall === "wall" || props.isWall === true) {
                 props.isWall = true;
             } else {
                 props.isWall = false;
