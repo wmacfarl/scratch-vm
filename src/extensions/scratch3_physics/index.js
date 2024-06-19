@@ -729,27 +729,12 @@ class Scratch3Physics {
                 continue;
             }
 
-            if (
-                (target.physicsCostumeName !== "hitbox" &&
-                    target.physicsCostumeName !==
-                        target.getCurrentCostume().name) ||
-                target.size !== target.physicsSize
-            ) {
-                const cachedVelocity = body.GetLinearVelocity();
-                body = this.setPhysicsFor(target);
-                body.SetLinearVelocity(cachedVelocity);
-            }
-
-            target.physicsSize = target.size;
-            if (!target.visible && !body.isHidden){
-                this.setHidden(target, true);
-            } else if (target.visible && body.isHidden) {
-                this.setHidden(target, false);
-            }
+            
 
             const position = body.GetPosition();
-
-            _setXY(target, position.x * zoom, position.y * zoom);
+            if (!body.isStatic) {
+                _setXY(target, position.x * zoom, position.y * zoom);
+            }
 
             //TODO:  Does this make sense?  Who gets to decide the rotation?  Physics or Scratch?  When?
             if (
@@ -797,9 +782,12 @@ class Scratch3Physics {
     }
 
     _checkMoved() {
+        console.log("check moved");
         for (const targetID in bodies) {
-            const body = bodies[targetID];
-            const target = this.runtime.getTargetById(targetID);
+            let body = bodies[targetID];
+            let target = this.runtime.getTargetById(targetID);
+
+
             if (!target) {
                 // Drop target from simulation
                 world.DestroyBody(body);
@@ -808,13 +796,35 @@ class Scratch3Physics {
                 continue;
             }
 
+
+
             const prev = prevPos[targetID];
             const fixedRotation = true;
+if (
+                (target.physicsCostumeName !== "hitbox" &&
+                    target.physicsCostumeName !==
+                        target.getCurrentCostume().name) ||
+                target.size !== target.physicsSize ||
+                body.isStatic
+            ) {
+                const cachedVelocity = body.GetLinearVelocity();
+                body = this.setPhysicsFor(target);
+             //   body.SetLinearVelocity(cachedVelocity);
+            }
 
+            target.physicsSize = target.size;
+            if (!target.visible && !body.isHidden){
+                this.setHidden(target, true);
+            } else if (target.visible && body.isHidden) {
+                this.setHidden(target, false);
+            }
             if (prev && (prev.x !== target.x || prev.y !== target.y)) {
                 const pos = new b2Vec2(target.x / zoom, target.y / zoom);
                 body.SetAwake(true);
+                if (!body.isStatic){
+                    console.log("setting position for", target.sprite.name, pos.x, pos.y)
                 body.SetPosition(pos);
+                }
             }
             if (prev && prev.dir !== target.direction) {
                 body.SetAngle((90 - target.direction) * toRad);
@@ -826,10 +836,10 @@ class Scratch3Physics {
                 const velocity = body.GetLinearVelocity();
                 velocity.Normalize();
                 velocity.Multiply(MAX_VELOCITY);
-                body.SetLinearVelocity(velocity);
+             //   body.SetLinearVelocity(velocity);
             }
             if (velocityMagnitude < MIN_VELOCITY) {
-                body.SetLinearVelocity(new b2Vec2(0, 0));
+             //   body.SetLinearVelocity(new b2Vec2(0, 0));
             }
         }
     }
@@ -1439,6 +1449,7 @@ function serializeStageBodies(stageBodies) {
 
 class MyContactListener extends Box2D.Dynamics.b2ContactListener {
     PostSolve(contact, impulse) {
+        return
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
         const bodyA = fixtureA.GetBody();
