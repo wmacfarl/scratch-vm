@@ -971,6 +971,8 @@ if (
 
         if (target.visible === false) {
             target.setVisible(true);
+            isHidden = false;
+        } else{
             isHidden = true;
         }
         const drawable = r._allDrawables[target.drawableID];
