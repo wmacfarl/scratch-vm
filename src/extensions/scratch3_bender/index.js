@@ -21,7 +21,7 @@ const SPRITE_PROPS = {
 class Scratch3BenderBlocks {
     constructor(runtime) {
         this.runtime = runtime;
-
+        this.runtime.deleteTarget = this.deleteTarget.bind(this);
         // There is no way to get the bender instance from the runtime, so we will need to store it
         runtime.bender = this;
 
@@ -277,20 +277,43 @@ class Scratch3BenderBlocks {
         this.runtime.requestRedraw();
     }
 
+    deleteTarget(target) {
+        // delete target does the following:
+        // if it is a clone, it will be removed from the runtime
+        // if it is the original and there are no clones, it will be removed from the runtime
+        // if it is the original and there are clones, it will be hidden and marked as destroyed
+        // if it is the stage, nothing will happen
+        if (target.isStage) {
+            return;
+        }
+
+        if (target.isOriginal) {
+            if (target.sprite.clones.length === 1) {
+                this.runtime.stopForTarget(target);
+                this.runtime.disposeTarget(target);
+            } else {
+                target.isDestroyed = true;
+                target.setVisible(false);
+            }
+        } else {
+            if (
+                target.sprite.clones.length === 2 &&
+                target.sprite.clones[0].isDestroyed
+            ) {
+                this.runtime.stopForTarget(target.sprite.clones[0]);
+                this.runtime.disposeTarget(target.sprite.clones[0]);
+            }
+            this.runtime.stopForTarget(target);
+            this.runtime.disposeTarget(target);
+        }
+    }
+
     deleteSelf(args, util) {
         const { target } = util;
         if (target.isStage) {
             return;
         }
-
-
-        if (target.isOriginal) {
-            target.isDestroyed = true;
-            target.setVisible(false);
-        } else {
-            this.runtime.stopForTarget(target);
-            this.runtime.disposeTarget(target);
-        }
+        this.deleteTarget(target);
     }
     getPixelColor(args) {
         const { X, Y } = args;
