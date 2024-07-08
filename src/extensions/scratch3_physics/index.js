@@ -4,7 +4,8 @@ const CATEGORY_NOT_WALLS = 0x0002;
 const CATEGORY_STAGE_WALLS = 0x0004;
 
 const zoom = 50;
-const LINEAR_DAMPING = 1;
+
+const LINEAR_DAMPING = 0;
 const ANGULAR_DAMPING = 0;
 const MAX_VELOCITY = 200;
 const MIN_VELOCITY = 0.1;
@@ -283,7 +284,7 @@ class Scratch3Physics {
 
         fixDef.density = 1.0; // 1.0
         fixDef.friction = 0.5; // 0.5
-        fixDef.restitution = 0.2; // 0.2
+        fixDef.restitution = 0; // 0.2
 
         setupStage();
     }
@@ -444,6 +445,15 @@ class Scratch3Physics {
                         id: "physics.getFriction",
                         default: "friction",
                         description: "get the friction",
+                    }),
+                    blockType: BlockType.REPORTER,
+                },
+                {
+                    opcode: "getMass",
+                    text: formatMessage({
+                        id: "physics.getMass",
+                        default: "mass",
+                        description: "get the mass",
                     }),
                     blockType: BlockType.REPORTER,
                 },
@@ -811,6 +821,40 @@ class Scratch3Physics {
                     body.SetLinearVelocity(new b2Vec2(vel.x, -vel.y));
                 }
             }
+
+            if (body.isStatic) {
+                continue;
+            }
+            const appliedGlitchesList = Object.values(target.variables).find(
+                (v) => v.name === "$applied_glitches" && v.type === "list"
+            );
+            if (appliedGlitchesList) {
+                const hasGravity = appliedGlitchesList.value.find(
+                    (v) => v === "gravity"
+                );
+                const oldVelocity = body.GetLinearVelocity();
+                // if body.friction is undefined, set it to 1
+                if (body.friction === undefined) {
+                    body.friction = 1;
+                }
+                let friction = body.friction;
+                if (hasGravity) {
+                    // only apply friction ot the x velocity
+                    const newVelocity = new b2Vec2(
+                        oldVelocity.x * (1-friction),
+                        oldVelocity.y
+                    );
+
+                    body.SetLinearVelocity(newVelocity);
+                } else {
+                    // apply friction to both x and y velocity
+                    const newVelocity = new b2Vec2(
+                        oldVelocity.x * (1-friction),
+                        oldVelocity.y * (1-friction)
+                    );
+                    body.SetLinearVelocity(newVelocity);
+                }
+            }
         }
     }
 
@@ -923,7 +967,6 @@ class Scratch3Physics {
             return; // Ignore if the setting hasn't changed
         }
         body.allowScreenwrap = allowScreenwrap; // Track screenwrap setting
-       
 
         body.SetAwake(true); // Make sure the body is active so changes take effect immediately
 
@@ -957,6 +1000,7 @@ class Scratch3Physics {
             kickStrength = 0,
             isStatic = false,
             allowScreenwrap = false;
+        friction = 1;
         isHidden = false;
         if (props) {
             if (props.isWall === "wall" || props.isWall === true) {
@@ -969,6 +1013,7 @@ class Scratch3Physics {
             isStatic = props.isStatic;
             allowScreenwrap = props.allowScreenwrap;
             isHidden = props.isHidden;
+            friction = props.friction;
         } else {
             let oldBody = bodies[target.id];
             if (!oldBody) {
@@ -983,8 +1028,10 @@ class Scratch3Physics {
                 allowScreenwrap = oldBody.allowScreenwrap;
                 kickStrength = oldBody.kickStrength;
                 isHidden = oldBody.isHidden;
+                friction = oldBody.friction;
             }
         }
+
         const r = this.runtime.renderer;
 
         if (target.visible === false) {
@@ -1043,6 +1090,7 @@ class Scratch3Physics {
             target.y,
             target.direction
         );
+        body.friction = friction;
         //set to dynamic
         if (isStatic) {
             body.SetType(b2Body.b2_staticBody);
@@ -1212,6 +1260,14 @@ class Scratch3Physics {
         return body.isWall;
     }
 
+    getMass(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return 0;
+        }
+        return body.GetMass();
+    }
+
     getBounciness(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
@@ -1227,9 +1283,8 @@ class Scratch3Physics {
             return 0;
         }
         // get linear damping
-        return body.GetFixtureList().GetLinearDamping();
+        return body.friction;
     }
-        
 
     getKickStrength(args, util) {
         const body = bodies[util.target.id];
@@ -1285,7 +1340,8 @@ class Scratch3Physics {
         if (!body) {
             return;
         }
-        body.SetLinearDamping(args.damping);
+        //        body.SetLinearDamping(args.damping);
+        body.friction = args.damping;
     }
 
     setStatic(args, util) {
@@ -1403,7 +1459,7 @@ class Scratch3Physics {
                 b.SetAngularVelocity(body.angularVelocity);
                 b.SetFixedRotation(body.fixedRotation);
                 b.SetType(body.type);
-           }
+            }
         });
 
         _stageBodies.forEach((body) => {
@@ -1447,6 +1503,7 @@ function serializeBodies(bodies) {
             fixedRotation: body.IsFixedRotation(),
             type: body.GetType(),
             isHidden: body.isHidden,
+            friction: body.friction,
             isStatic: body.isStatic,
             isWall: body.isWall,
             allowScreenwrap: body.allowScreenwrap,

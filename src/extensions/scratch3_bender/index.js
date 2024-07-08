@@ -18,8 +18,22 @@ const SPRITE_PROPS = {
     LAYER: "layer",
 };
 
+function getSpriteTargetByName (spriteName) {
+    for (let i = 0; i < this.targets.length; i++) {
+        const target = this.targets[i];
+        if (target.isStage) {
+            continue;
+        }
+        if (target.sprite && target.sprite.name === spriteName && !target.isDestroyed) {
+            return target;
+        }
+    }
+}
+
 class Scratch3BenderBlocks {
     constructor(runtime) {
+        runtime.getSpriteTargetByName = getSpriteTargetByName.bind(runtime);
+
         this.runtime = runtime;
         this.runtime.deleteTarget = this.deleteTarget.bind(this);
         // There is no way to get the bender instance from the runtime, so we will need to store it
