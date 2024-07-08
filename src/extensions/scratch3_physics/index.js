@@ -1,15 +1,16 @@
 // https://cdn.jsdelivr.net/gh/physics/physics.github.io/testExtension.js
 const CATEGORY_WALLS = 0x0001;
 const CATEGORY_NOT_WALLS = 0x0002;
-const CATEGORY_HIDDEN = 0x0008;
+const CATEGORY_STAGE_WALLS = 0x0004;
+
 const zoom = 50;
 const LINEAR_DAMPING = 1;
 const ANGULAR_DAMPING = 0;
 const MAX_VELOCITY = 200;
 const MIN_VELOCITY = 0.1;
 // Masks
-const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS; // WALLS collide with everything
-const MASK_NOT_WALLS = CATEGORY_WALLS; // NOT_WALLS should be affected by WALLS
+const MASK_WALLS = CATEGORY_WALLS | CATEGORY_NOT_WALLS | CATEGORY_STAGE_WALLS; // WALLS collide with everything
+const MASK_NOT_WALLS = CATEGORY_WALLS | CATEGORY_STAGE_WALLS; // NOT_WALLS should be affected by WALLS
 
 const ArgumentType = require("../../extension-support/argument-type");
 const BlockType = require("../../extension-support/block-type");
@@ -169,10 +170,11 @@ const _setXY = function (rt, x, y, force) {
 
 const createStageBody = function () {
     const body = world.CreateBody(bodyDef);
+    body.isStage = true;
     body.CreateFixture(fixDef);
 
     // Set the correct category bits for stage walls
-    let categoryBits = CATEGORY_WALLS;
+    let categoryBits = CATEGORY_STAGE_WALLS;
     let maskBits = MASK_WALLS; // This will only allow collision with types that should collide with stage walls
 
     // Loop through all fixtures of the body and update their filter data
@@ -263,7 +265,8 @@ class Scratch3Physics {
         );
         const contactListener = new MyContactListener();
         world.SetContactListener(contactListener);
-
+        const b2ContactFilter = new MyContactFilter();
+        world.SetContactFilter(b2ContactFilter);
         this.runtime.stepPhysics = this.doTick.bind(this);
         this.runtime.savePhysics = this.saveSnapshot.bind(this);
         this.runtime.loadPhysics = this.loadSnapshot.bind(this);
@@ -436,6 +439,15 @@ class Scratch3Physics {
                     blockType: BlockType.REPORTER,
                 },
                 {
+                    opcode: "getFriction",
+                    text: formatMessage({
+                        id: "physics.getFriction",
+                        default: "friction",
+                        description: "get the friction",
+                    }),
+                    blockType: BlockType.REPORTER,
+                },
+                {
                     opcode: "getBounciness",
                     text: formatMessage({
                         id: "physics.getBounciness",
@@ -536,6 +548,22 @@ class Scratch3Physics {
                     },
                 },
                 {
+                    opcode: "setScreenwrap",
+                    blockType: BlockType.COMMAND,
+                    text: formatMessage({
+                        id: "physics.setScreenwrap",
+                        default: "set screenwrap [screenwrap]",
+                        description: "Sets whether this piece can screenwrap",
+                    }),
+                    arguments: {
+                        screenwrap: {
+                            type: ArgumentType.STRING,
+                            menu: "ScreenwrapTypes",
+                            defaultValue: "allowed",
+                        },
+                    },
+                },
+                {
                     opcode: "setLinearDamping",
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
@@ -621,6 +649,7 @@ class Scratch3Physics {
                 EnableModeTypes: this.ENABLE_TYPES_TYPE_MENU,
                 StaticTypes: this.STATIC_TYPE_MENU,
                 WallTypes: this.WALL_TYPE_MENU,
+                ScreenwrapTypes: this.SCREENWRAP_TYPE_MENU,
                 FrictionTypes: this.FRICTION_TYPE_MENU,
                 RestitutionTypes: this.RESTITUTION_TYPE_MENU,
                 DensityTypes: this.DENSITY_TYPE_MENU,
@@ -669,10 +698,16 @@ class Scratch3Physics {
     get WALL_TYPE_MENU() {
         return [
             { text: "wall", value: "wall" },
-            { text: "not wall", value: "not wall"},
+            { text: "not wall", value: "not wall" },
         ];
     }
 
+    get SCREENWRAP_TYPE_MENU() {
+        return [
+            { text: "allowed", value: "allowed" },
+            { text: "not allowed", value: "not allowed" },
+        ];
+    }
     get DENSITY_TYPE_MENU() {
         return [
             { text: "very light", value: "25" },
@@ -729,12 +764,10 @@ class Scratch3Physics {
                 continue;
             }
 
-            
-
             const position = body.GetPosition();
-         //   if (!body.isStatic) {
-                _setXY(target, position.x * zoom, position.y * zoom);
-         //   }
+            //   if (!body.isStatic) {
+            _setXY(target, position.x * zoom, position.y * zoom);
+            //   }
 
             //TODO:  Does this make sense?  Who gets to decide the rotation?  Physics or Scratch?  When?
             if (
@@ -785,8 +818,7 @@ class Scratch3Physics {
         for (const targetID in bodies) {
             let body = bodies[targetID];
             let target = this.runtime.getTargetById(targetID);
-
-
+            let pos = body.GetPosition();
             if (!target) {
                 // Drop target from simulation
                 world.DestroyBody(body);
@@ -795,11 +827,9 @@ class Scratch3Physics {
                 continue;
             }
 
-
-
             const prev = prevPos[targetID];
             const fixedRotation = true;
-if (
+            if (
                 (target.physicsCostumeName !== "hitbox" &&
                     target.physicsCostumeName !==
                         target.getCurrentCostume().name) ||
@@ -812,21 +842,21 @@ if (
             }
 
             target.physicsSize = target.size;
-            if (!target.visible && !body.isHidden){
+            if (!target.visible && !body.isHidden) {
                 this.setHidden(target, true);
             } else if (target.visible && body.isHidden) {
                 this.setHidden(target, false);
             }
-            if (prev && (prev.x !== target.x || prev.y !== target.y)) {
-                const pos = new b2Vec2(target.x / zoom, target.y / zoom);
-                body.SetAwake(true);
-                body.SetPosition(pos);
+            const newPos = new b2Vec2(target.x / zoom, target.y / zoom);
+            if (newPos.x !== pos.x || newPos.y !== pos.y) {
+                body.SetPosition(newPos);
             }
-            if (prev && prev.dir !== target.direction) {
-                body.SetAngle((90 - target.direction) * toRad);
-                body.SetAwake(true);
+            const newDir = (90 - target.direction) * toRad;
+            const angle = body.GetAngle();
+            if (angle !== newDir) {
+                body.SetAngle(newDir);
             }
-
+            body.SetAwake(true);
             const velocityMagnitude = body.GetLinearVelocity().Length();
             if (velocityMagnitude > MAX_VELOCITY) {
                 const velocity = body.GetLinearVelocity();
@@ -872,13 +902,12 @@ if (
         if (!body) {
             body = this.setPhysicsFor(target);
         }
-        if (isHidden){
-            this.setCollisionFilter(target, "not wall")
+        if (isHidden) {
+            this.setCollisionFilter(target, "not wall");
         } else {
-            this.setCollisionFilter(target, body.isWall ? "wall" : "not wall")
+            this.setCollisionFilter(target, body.isWall ? "wall" : "not wall");
         }
         body.isHidden = isHidden;
-
     }
 
     setAllowScreenwrap(target, allowScreenwrap) {
@@ -894,18 +923,8 @@ if (
             return; // Ignore if the setting hasn't changed
         }
         body.allowScreenwrap = allowScreenwrap; // Track screenwrap setting
-        // Retrieve current filter data and update mask bits based on screenwrap setting
-        let maskBits = body.GetFixtureList().GetFilterData().maskBits;
+       
 
-        // Update the collision filter of the body
-        updateCollisionFilter(
-            body,
-            body.GetFixtureList().GetFilterData().categoryBits,
-            maskBits
-        );
-
-        target.ignoresStageWalls = allowScreenwrap; // Track screenwrap setting
-        body.allowScreenwrap = allowScreenwrap; // Track screenwrap setting
         body.SetAwake(true); // Make sure the body is active so changes take effect immediately
 
         // Flag all contacts for re-evaluation to update collision behavior
@@ -938,7 +957,7 @@ if (
             kickStrength = 0,
             isStatic = false,
             allowScreenwrap = false;
-            isHidden = false;
+        isHidden = false;
         if (props) {
             if (props.isWall === "wall" || props.isWall === true) {
                 props.isWall = true;
@@ -953,10 +972,9 @@ if (
         } else {
             let oldBody = bodies[target.id];
             if (!oldBody) {
-                if (!target.isOriginal){
-                    const originalId = target.sprite.clones[0].id
+                if (!target.isOriginal) {
+                    const originalId = target.sprite.clones[0].id;
                     oldBody = bodies[originalId];
-            
                 }
             }
             if (oldBody) {
@@ -971,9 +989,9 @@ if (
 
         if (target.visible === false) {
             target.setVisible(true);
-            isHidden = false;
-        } else{
             isHidden = true;
+        } else {
+            isHidden = false;
         }
         const drawable = r._allDrawables[target.drawableID];
 
@@ -1032,7 +1050,7 @@ if (
         } else {
             body.SetType(b2Body.b2_dynamicBody);
             body.isStatic = false;
-        }        
+        }
         this.setCollisionFilter(target, isWall ? "wall" : "not wall");
         body.SetLinearDamping(LINEAR_DAMPING);
         body.SetAngularDamping(ANGULAR_DAMPING);
@@ -1052,8 +1070,7 @@ if (
             target.setCostume(currentCostumeIndex);
         }
 
-    //    this.setAllowScreenwrap(target, allowScreenwrap);
-
+        this.setAllowScreenwrap(target, allowScreenwrap);
 
         body.kickStrength = kickStrength;
         if (isHidden) {
@@ -1204,6 +1221,16 @@ if (
         return fixture.GetRestitution();
     }
 
+    getFriction(args, util) {
+        const body = bodies[util.target.id];
+        if (!body) {
+            return 0;
+        }
+        // get linear damping
+        return body.GetFixtureList().GetLinearDamping();
+    }
+        
+
     getKickStrength(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
@@ -1230,20 +1257,23 @@ if (
         return (y * zoom) / 30;
     }
 
+    setScreenwrap(args, util) {
+        this.setAllowScreenwrap(util.target, args.screenwrap === "allowed");
+    }
+
     setIsWall(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
-            bo
+            bo;
             return;
         }
         let isWall = false;
-        
-        if (args.isWall === "wall" || args.isWall === true){
-            isWall = true
+
+        if (args.isWall === "wall" || args.isWall === true) {
+            isWall = true;
         } else {
-            isWall= false
+            isWall = false;
         }
-      
 
         body.isWall = isWall;
         const isWallString = isWall ? "wall" : "not wall";
@@ -1359,7 +1389,6 @@ if (
         this.runtime.targets.forEach((target) => {
             const body = _bodies[target.id];
             if (body) {
-                
                 this.setPhysicsFor(target, {
                     isStatic: body.isStatic,
                     isWall: body.isWall,
@@ -1374,7 +1403,7 @@ if (
                 b.SetAngularVelocity(body.angularVelocity);
                 b.SetFixedRotation(body.fixedRotation);
                 b.SetType(body.type);
-            }
+           }
         });
 
         _stageBodies.forEach((body) => {
@@ -1389,6 +1418,7 @@ if (
     }
 
     saveSnapshot() {
+        this._checkMoved();
         const _bodies = serializeBodies(bodies);
         const _stageBodies = serializeStageBodies(stageBodies);
         return {
@@ -1436,6 +1466,20 @@ function serializeStageBodies(stageBodies) {
         });
     }
     return _stageBodies;
+}
+class MyContactFilter extends Box2D.Dynamics.b2ContactFilter {
+    ShouldCollide(fixtureA, fixtureB) {
+        const bodyA = fixtureA.GetBody();
+        const bodyB = fixtureB.GetBody();
+
+        if (bodyA.allowScreenwrap && bodyB.isStage) {
+            return false;
+        }
+        if (bodyB.allowScreenwrap && bodyA.isStage) {
+            return false;
+        }
+        return super.ShouldCollide(fixtureA, fixtureB);
+    }
 }
 
 class MyContactListener extends Box2D.Dynamics.b2ContactListener {
