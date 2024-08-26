@@ -303,8 +303,10 @@ class Scratch3BenderBlocks {
 
         if (target.isOriginal) {
             if (target.sprite.clones.length === 1) {
+                this.runtime.gamebender.emitter.emit("destroy-target", target.id)
                 this.runtime.stopForTarget(target);
                 this.runtime.disposeTarget(target);
+
             } else {
                 target.isDestroyed = true;
                 target.setVisible(false);
@@ -314,6 +316,7 @@ class Scratch3BenderBlocks {
                 target.sprite.clones.length === 2 &&
                 target.sprite.clones[0].isDestroyed
             ) {
+                this.runtime.gamebender.emitter.emit("destroy-target", target.id)
                 this.runtime.stopForTarget(target.sprite.clones[0]);
                 this.runtime.disposeTarget(target.sprite.clones[0]);
             }
