@@ -794,6 +794,19 @@ class Scratch3Physics {
             };
 
             if (!body.allowScreenwrap && body.isStatic) {
+                console.log("target", target);
+                const hasConvexHullPoints = 
+                target.renderer._allDrawables[target.drawableID].convexHullPoints &&
+                target.renderer._allDrawables[target.drawableID].convexHullPoints.length > 1 &&
+                target.renderer._allDrawables[target.drawableID].convexHullPoints[0];
+                if (!hasConvexHullPoints) {
+                    target.updateAllDrawableProperties();
+                    const size = target.size;
+                    target.setSize(size + 1);
+                    target.setSize(size);
+                    target.updateAllDrawableProperties();
+                    continue;
+                }
                 const bounds = target.getBounds();
                 if (bounds.right >= 245) {
                     const delta = bounds.right - 245;
@@ -841,7 +854,7 @@ class Scratch3Physics {
                 if (hasGravity) {
                     // only apply friction ot the x velocity
                     const newVelocity = new b2Vec2(
-                        oldVelocity.x * (1-friction),
+                        oldVelocity.x * (1 - friction),
                         oldVelocity.y
                     );
 
@@ -849,8 +862,8 @@ class Scratch3Physics {
                 } else {
                     // apply friction to both x and y velocity
                     const newVelocity = new b2Vec2(
-                        oldVelocity.x * (1-friction),
-                        oldVelocity.y * (1-friction)
+                        oldVelocity.x * (1 - friction),
+                        oldVelocity.y * (1 - friction)
                     );
                     body.SetLinearVelocity(newVelocity);
                 }
@@ -877,11 +890,14 @@ class Scratch3Physics {
                 (target.physicsCostumeName !== "hitbox" &&
                     target.physicsCostumeName !==
                         target.getCurrentCostume().name) ||
-                target.size !== target.physicsSize ||
-                body.isStatic
+                target.size !== target.physicsSize || !body ||
+                body.isStatic 
             ) {
                 const cachedVelocity = body.GetLinearVelocity();
                 body = this.setPhysicsFor(target);
+                if (!body || !body.SetLinearVelocity) {
+                    continue;
+                }
                 body.SetLinearVelocity(cachedVelocity);
             }
 
@@ -1076,10 +1092,18 @@ class Scratch3Physics {
 
         const hullPoints = [];
         for (const i in points) {
-            hullPoints.push({
-                x: (points[i][0] - offset[0]) * scaleX,
-                y: (points[i][1] - offset[1]) * scaleY,
-            });
+            if (!points[i] || points[i].length < 2 ) {
+                if (bodies[target.id]){
+                    return bodies[target.id];
+                } else {
+                    return null
+                }
+            } else {
+                hullPoints.push({
+                    x: (points[i][0] - offset[0]) * scaleX,
+                    y: (points[i][1] - offset[1]) * scaleY,
+                });
+            }
         }
 
         _definePolyFromHull(hullPoints);
