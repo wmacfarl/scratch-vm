@@ -1343,7 +1343,6 @@ class Scratch3Physics {
     setIsWall(args, util) {
         const body = bodies[util.target.id];
         if (!body) {
-            bo;
             return;
         }
         let isWall = false;
